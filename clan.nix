@@ -3,9 +3,12 @@
   meta.name = "nixcon-ctf";
   meta.domain = "immutable-byte.de";
 
+  # Local clan services.
+  modules.ctfd = ./services/ctfd;
+
   inventory.machines = {
     # Define machines here.
-    # test-machine = { };
+    ctf-machine = { };
   };
 
   inventory.instances = {
@@ -19,7 +22,7 @@
         # Insert the public key that you want to use for SSH access.
         # All keys will have ssh access to all machines ("tags.all" means 'all machines').
         # Alternatively set 'users.users.root.openssh.authorizedKeys.keys' in each machine
-        "admin-machine-1" = "PASTE_YOUR_KEY_HERE";
+        "admin-machine-1" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGXfyed2m6hEB5gXTclAYSdi8tDQJF5HQe+rop7Pj8ik lhebendanz@wintux";
       };
     };
 
@@ -39,17 +42,27 @@
     # Docs: https://clan.lol/docs/unstable/services/official/p2p-ssh-iroh
     # Status experimental
     # Firewall-traversing SSH access via encrypted QUIC streams
-    # p2p-ssh-iroh = {
-    #   roles.server.tags = [ "nixos" ];
-    # };
+    p2p-ssh-iroh = {
+      roles.server.tags = [ "nixos" ];
+    };
+
+    # Local module (see ./services/ctfd). Runs the CTFd platform with its
+    # MariaDB and Redis containers. Secrets are managed through clan vars.
+    ctfd = {
+      module = {
+        name = "ctfd";
+        input = "self";
+      };
+      roles.server.machines.ctf-machine = { };
+    };
   };
 
   # Additional NixOS configuration can be added here.
   # machines/server/configuration.nix will be automatically imported.
   # See: https://clan.lol/docs/unstable/guides/inventory/autoincludes
   machines = {
-    # test-machine = { config, ... }: {
-    #   environment.systemPackages = [ pkgs.asciinema ];
-    # };
+    ctf-machine = { config, pkgs, ... }: {
+      environment.systemPackages = [ pkgs.helix ];
+    };
   };
 }
