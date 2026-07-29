@@ -40,6 +40,43 @@
             default = 1;
             description = "Number of gunicorn workers CTFd runs.";
           };
+
+          nginx = {
+            enable = lib.mkEnableOption "an nginx reverse proxy with TLS (ACME) in front of CTFd";
+
+            hostName = lib.mkOption {
+              type = lib.types.str;
+              example = "ctf.immutable-byte.de";
+              description = ''
+                Public host name CTFd is served under. A Let's Encrypt
+                certificate is obtained for it, so DNS must point at this machine
+                and ports 80 and 443 must be reachable.
+              '';
+            };
+
+            acmeEmail = lib.mkOption {
+              type = lib.types.str;
+              example = "admin@immutable-byte.de";
+              description = "Contact email for the Let's Encrypt account.";
+            };
+
+            anubis = {
+              enable = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = ''
+                  Put Anubis in front of CTFd as a proof-of-work anti-bot
+                  challenge, using nginx subrequest authentication.
+                '';
+              };
+
+              port = lib.mkOption {
+                type = lib.types.port;
+                default = 8923;
+                description = "Loopback port the Anubis instance binds to.";
+              };
+            };
+          };
         };
       };
 
@@ -50,13 +87,16 @@
           {
             config,
             pkgs,
+            lib,
             ...
           }:
           let
             secrets = config.clan.core.vars.generators.ctfd.files;
             backend = config.virtualisation.oci-containers.backend;
             backendBin = "${pkgs.${backend}}/bin/${backend}";
+            proxy = settings.nginx;
           in
+          lib.mkMerge [
           {
             # Force docker: internal-network name resolution does not work with podman.
             virtualisation.oci-containers.backend = "docker";
@@ -174,7 +214,75 @@
                 ];
               };
             };
-          };
+          }
+
+          (lib.mkIf proxy.enable {
+            networking.firewall.allowedTCPPorts = [
+              80
+              443
+            ];
+
+            security.acme.acceptTerms = true;
+            security.acme.defaults.email = proxy.acmeEmail;
+
+            services.nginx = {
+              enable = true;
+              recommendedProxySettings = true;
+              recommendedTlsSettings = true;
+              recommendedOptimisation = true;
+              recommendedGzipSettings = true;
+
+              virtualHosts.${proxy.hostName} = {
+                forceSSL = true;
+                enableACME = true;
+
+                locations = {
+                  "/" = {
+                    proxyPass = "http://${settings.address}:${toString settings.port}";
+                    proxyWebsockets = true;
+                    # Gate every request on an Anubis proof-of-work challenge.
+                    # https://anubis.techaro.lol/docs/admin/configuration/subrequest-auth
+                    extraConfig = lib.optionalString proxy.anubis.enable ''
+                      auth_request /.within.website/x/cmd/anubis/api/check;
+                      error_page 401 = @redirectToAnubis;
+                    '';
+                  };
+                }
+                // lib.optionalAttrs proxy.anubis.enable {
+                  "/.within.website/" = {
+                    proxyPass = "http://127.0.0.1:${toString proxy.anubis.port}";
+                    extraConfig = ''
+                      auth_request off;
+                      proxy_pass_request_body off;
+                      proxy_set_header Content-Length "";
+                    '';
+                  };
+
+                  "@redirectToAnubis".extraConfig = ''
+                    return 307 /.within.website/?redir=$scheme://$host$request_uri;
+                    auth_request off;
+                  '';
+                };
+              };
+            };
+
+            services.anubis.instances.ctfd = lib.mkIf proxy.anubis.enable {
+              settings = {
+                # Subrequest-auth mode: nginx proxies to CTFd, Anubis only
+                # answers the auth_request check, so no upstream target here.
+                TARGET = " ";
+                BIND = "127.0.0.1:${toString proxy.anubis.port}";
+                BIND_NETWORK = "tcp";
+                OG_PASSTHROUGH = true;
+                REDIRECT_DOMAINS = proxy.hostName;
+              };
+              policy.settings.status_codes = {
+                CHALLENGE = 200;
+                DENY = 403;
+              };
+            };
+          })
+          ];
       };
   };
 }

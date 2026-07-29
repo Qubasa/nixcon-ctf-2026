@@ -31,6 +31,29 @@ inventory.instances.ctfd = {
 CTFd listens on loopback by default and expects a reverse proxy (it runs with
 `REVERSE_PROXY=true`). Point your proxy at `http://127.0.0.1:8000`.
 
+## Reverse proxy (nginx + TLS + Anubis)
+
+Setting `nginx.enable = true` puts nginx in front of CTFd, terminates TLS with a
+Let's Encrypt certificate, and gates every request behind an
+[Anubis](https://anubis.techaro.lol/) proof-of-work anti-bot challenge (nginx
+subrequest authentication). Ports 80 and 443 are opened.
+
+```nix
+inventory.instances.ctfd = {
+  roles.server.machines.ctf-machine = { };
+  roles.server.settings.nginx = {
+    enable = true;
+    hostName = "ctf.immutable-byte.de";
+    acmeEmail = "admin@immutable-byte.de";
+    # anubis.enable = true;   # on by default
+    # anubis.port = 8923;     # loopback port Anubis binds to
+  };
+};
+```
+
+DNS for `hostName` must resolve to this machine and ports 80/443 must be
+reachable from the internet for the ACME HTTP-01 challenge to succeed.
+
 ## Notes
 
 - Docker is forced as the backend because internal-network name resolution does
