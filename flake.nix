@@ -2,6 +2,12 @@
   inputs.clan-core.url = "https://git.clan.lol/clan/clan-core/archive/main.tar.gz";
   inputs.nixpkgs.follows = "clan-core/nixpkgs";
 
+  # nixbot — standalone Nix CI (buildbot-nix's successor) for the nixbot
+  # service. Provides nixosModules.nixbot; integrates with the clan's Gitea
+  # via webhooks and commit statuses.
+  inputs.nixbot.url = "github:Mic92/nixbot";
+  inputs.nixbot.inputs.nixpkgs.follows = "nixpkgs";
+
   outputs =
     {
       self,
@@ -13,7 +19,7 @@
       # Usage see: https://clan.lol/docs
       clan = clan-core.lib.clan {
         inherit self;
-        imports = [ ./clan.nix ];
+        imports = [ (import ./clan.nix { inherit inputs; }) ];
         specialArgs = { inherit inputs; };
 
         # Customize nixpkgs

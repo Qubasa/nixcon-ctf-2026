@@ -127,6 +127,27 @@
         "url": "https://git.clan.lol/clan/nix-select/archive/main.tar.gz"
       }
     },
+    "nixbot": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "treefmt-nix": "treefmt-nix_2"
+      },
+      "locked": {
+        "lastModified": 1785237279,
+        "narHash": "sha256-FDAoJs/efW8k90tS/49s1FWla5yu5sY//04X9bkmGA0=",
+        "owner": "Mic92",
+        "repo": "nixbot",
+        "rev": "6764a0ef1c704b6db339f19d81cb5642a2508dff",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Mic92",
+        "repo": "nixbot",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1781229721,
@@ -143,6 +164,7 @@
     "root": {
       "inputs": {
         "clan-core": "clan-core",
+        "nixbot": "nixbot",
         "nixpkgs": [
           "clan-core",
           "nixpkgs"
@@ -199,6 +221,27 @@
         "owner": "numtide",
         "repo": "treefmt-nix",
         "rev": "df3c0640565d04a0261253cdd89fce78ec50168a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "treefmt-nix_2": {
+      "inputs": {
+        "nixpkgs": [
+          "nixbot",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1780220602,
+        "narHash": "sha256-eynAfOmbmxJnkp7YewvCEbShNnnYJ9gLLqkzsYtBPeM=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "db947814a175b7ca6ded66e21383d938df01c227",
         "type": "github"
       },
       "original": {

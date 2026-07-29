@@ -1,3 +1,4 @@
+{ inputs }:
 {
   # Ensure this is unique among all clans you want to use.
   meta.name = "nixcon-ctf";
@@ -6,6 +7,8 @@
   # Local clan services.
   modules.ctfd = ./services/ctfd;
   modules.gitea = ./services/gitea;
+  # Takes `inputs` to reach the nixbot flake's module.
+  modules.nixbot = import ./services/nixbot { inherit inputs; };
 
   inventory.machines = {
     # Define machines here.
@@ -68,6 +71,26 @@
       roles.server.settings = {
         hostName = "git.immutable-byte.de";
         nginx.acmeEmail = "admin@immutable-byte.de";
+      };
+    };
+
+    # Local module (see ./services/nixbot). Nix CI for the Gitea instance
+    # above: webhooks -> `.#checks` -> commit statuses. Needs the manual Gitea
+    # setup described in services/nixbot/README.md (bot user, access token,
+    # OAuth2 app) before the first deploy.
+    nixbot = {
+      module = {
+        name = "nixbot";
+        input = "self";
+      };
+      roles.server.machines.ctf-machine = { };
+      roles.server.settings = {
+        hostName = "ci.immutable-byte.de";
+        giteaUrl = "https://git.immutable-byte.de";
+        acmeEmail = "admin@immutable-byte.de";
+        # Client id of the Gitea OAuth2 application (non-secret).
+        oauthId = "REPLACE_WITH_GITEA_OAUTH_CLIENT_ID";
+        admins = [ "gitea:qubasa" ];
       };
     };
   };
