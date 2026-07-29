@@ -89,7 +89,7 @@
         giteaUrl = "https://git.immutable-byte.de";
         acmeEmail = "admin@immutable-byte.de";
         # Client id of the Gitea OAuth2 application (non-secret).
-        oauthId = "REPLACE_WITH_GITEA_OAUTH_CLIENT_ID";
+        oauthId = "07f8d2ba-77ef-48e9-bce5-424e956596d0";
         admins = [ "gitea:qubasa" ];
       };
     };
