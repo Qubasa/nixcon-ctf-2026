@@ -5,6 +5,7 @@
 
   # Local clan services.
   modules.ctfd = ./services/ctfd;
+  modules.gitea = ./services/gitea;
 
   inventory.machines = {
     # Define machines here.
@@ -54,6 +55,20 @@
         input = "self";
       };
       roles.server.machines.ctf-machine = { };
+    };
+
+    # Local module (see ./services/gitea). Gitea on PostgreSQL behind nginx
+    # with TLS and an Anubis proof-of-work challenge.
+    gitea = {
+      module = {
+        name = "gitea";
+        input = "self";
+      };
+      roles.server.machines.ctf-machine = { };
+      roles.server.settings = {
+        hostName = "git.immutable-byte.de";
+        nginx.acmeEmail = "admin@immutable-byte.de";
+      };
     };
   };
 
