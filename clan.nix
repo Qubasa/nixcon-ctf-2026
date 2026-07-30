@@ -58,6 +58,13 @@
         input = "self";
       };
       roles.server.machines.ctf-machine = { };
+      roles.server.settings = {
+        nginx = {
+          enable = true;
+          hostName = "ctf.immutable-byte.de";
+          acmeEmail = "admin@immutable-byte.de";
+        };
+      };
     };
 
     # Local module (see ./services/gitea). Gitea on PostgreSQL behind nginx
