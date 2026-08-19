@@ -93,6 +93,47 @@
         "type": "github"
       }
     },
+    "home-manager": {
+      "inputs": {
+        "nixpkgs": [
+          "homewort",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1782098443,
+        "narHash": "sha256-YPkdDanqvbjIKgrjbcjvk6U+yfmilyHShDhg+cvweZc=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "e45cc6e15ada91d078d84bee61819d1e64ec61f1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "e45cc6e15ada91d078d84bee61819d1e64ec61f1",
+        "type": "github"
+      }
+    },
+    "homewort": {
+      "inputs": {
+        "home-manager": "home-manager",
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "lastModified": 1786394660,
+        "narHash": "sha256-xMfo7RhATaKtto2dDwPjTEUX+JTYrs57Q3F9WKzW0Yw=",
+        "ref": "refs/heads/main",
+        "rev": "ede457d26c5236db6e59573e5d668edc616ee32e",
+        "revCount": 2,
+        "type": "git",
+        "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort.git"
+      }
+    },
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
@@ -161,9 +202,26 @@
         "url": "https://nixos.org/channels/nixpkgs-unstable/nixexprs.tar.xz"
       }
     },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1781607440,
+        "narHash": "sha256-rxO+uc/KFbSJp+pgyXRuAX6QlG9hJdnt0BXpEQRXY+U=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "3e41b24abd260e8f71dbe2f5737d24122f972158",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "3e41b24abd260e8f71dbe2f5737d24122f972158",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "clan-core": "clan-core",
+        "homewort": "homewort",
         "nixbot": "nixbot",
         "nixpkgs": [
           "clan-core",

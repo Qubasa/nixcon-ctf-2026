@@ -8,6 +8,11 @@
   inputs.nixbot.url = "github:Mic92/nixbot";
   inputs.nixbot.inputs.nixpkgs.follows = "nixpkgs";
 
+  # The homewort CTF challenge (nixosConfigurations.mus). Hosted by the
+  # `homewort` service; pins its own nixpkgs/home-manager on purpose, so it
+  # deliberately does not follow this flake's nixpkgs.
+  inputs.homewort.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort.git";
+
   outputs =
     {
       self,

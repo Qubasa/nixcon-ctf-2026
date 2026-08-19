@@ -9,6 +9,8 @@
   modules.gitea = ./services/gitea;
   # Takes `inputs` to reach the nixbot flake's module.
   modules.nixbot = import ./services/nixbot { inherit inputs; };
+  # Takes `inputs` to reach the challenge flake it hosts.
+  modules.homewort = import ./services/homewort { inherit inputs; };
 
   inventory.machines = {
     # Define machines here.
@@ -98,6 +100,21 @@
         # Client id of the Gitea OAuth2 application (non-secret).
         oauthId = "07f8d2ba-77ef-48e9-bce5-424e956596d0";
         admins = [ "gitea:qubasa" ];
+      };
+    };
+
+    # Local module (see ./services/homewort). Pool of ephemeral QEMU VMs
+    # hosting the `homewort` privilege-escalation challenge, one forwarded SSH
+    # port per VM starting at 2201. The flag is the operator-prompted
+    # `homewort/flag` clan var.
+    homewort = {
+      module = {
+        name = "homewort";
+        input = "self";
+      };
+      roles.server.machines.ctf-machine = { };
+      roles.server.settings = {
+        instances = 6;
       };
     };
   };
