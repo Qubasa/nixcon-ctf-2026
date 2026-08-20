@@ -42,9 +42,11 @@ Rotating the flag (`clan vars set ctf-machine homewort/flag`) restarts all VMs.
 
 The guests run with QEMU's `restrict=on`: the forwarded SSH port works, but the
 VMs have no outbound access — a rooted challenge box cannot reach the internet or
-the rest of the host's network. Because of that the guest's `/etc/nixos` flake
-pins its inputs to Nix store paths, so `sudo rebuildHome` works offline.
-Installing additional packages inside the VM does not work, which is expected.
+the rest of the host's network. Because of that this service images the challenge
+flake's `mus-vm`, which pins the guest's `/etc/nixos` flake inputs to Nix store
+paths and seeds the store with what an offline rebuild has to build, so
+`sudo rebuildHome` works without egress. Installing additional packages inside
+the VM does not work, which is expected.
 
 ## Usage
 

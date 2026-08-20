@@ -121,11 +121,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1786394660,
-        "narHash": "sha256-xMfo7RhATaKtto2dDwPjTEUX+JTYrs57Q3F9WKzW0Yw=",
+        "lastModified": 1787231397,
+        "narHash": "sha256-3PKMi+Cx3fsfLp5ph6QW8sGpmRMr0Qv73UUYYGtr4dA=",
         "ref": "refs/heads/main",
-        "rev": "ede457d26c5236db6e59573e5d668edc616ee32e",
-        "revCount": 2,
+        "rev": "d51796ef8cb2f730d61a35de40fdc44f35984349",
+        "revCount": 4,
         "type": "git",
         "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort.git"
       },

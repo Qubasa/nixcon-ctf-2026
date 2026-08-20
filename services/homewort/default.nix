@@ -55,7 +55,7 @@
 
           diskSize = lib.mkOption {
             type = lib.types.ints.positive;
-            default = 12288;
+            default = 36864;
             description = ''
               Size in MiB of each VM's writable overlay. It is a sparse qcow2
               backed by the read-only system image, so this is an upper bound,
@@ -90,38 +90,24 @@
           }:
           let
             flag = config.clan.core.vars.generators.homewort.files.flag.path;
-            # The challenge pins its own nixpkgs; seed build tools from that
-            # exact package set so store hashes match what the guest evaluates.
-            homewortPkgs = inputs.homewort.inputs.nixpkgs.legacyPackages.x86_64-linux;
-
 
             vmNames = map (n: "homewort-vm-${toString n}") (lib.range 1 settings.instances);
 
-            # The challenge repo's machine, turned into a self-contained QEMU
-            # VM: the bootloader lives in the image, so a player's
-            # `nixos-rebuild switch` inside the VM succeeds. The host Nix store
-            # is not shared into the guest and the guest has no egress.
-            #
-            # `additionalPaths` does two things here: make-disk-image copies
-            # their closure into the image's store, and qemu-vm registers that
-            # closure in the guest's Nix database at boot. Passing the toplevel
-            # *derivation* makes the closure the full build graph, so a rebuild
-            # inside the guest finds every input already built and registered.
+            # `mus-vm` is the challenge's own bootable variant: same machine as
+            # `mus`, plus the closure an offline `sudo rebuildHome` needs already
+            # in the guest store. The bootloader lives in the image so a player's
+            # `nixos-rebuild switch` succeeds; the host Nix store is not shared
+            # into the guest and the guest has no egress.
             vm =
-              (inputs.homewort.nixosConfigurations.mus.extendModules {
+              (inputs.homewort.nixosConfigurations.mus-vm.extendModules {
                 modules = [
                   (
-                    { config, ... }:
+                    { ... }:
                     {
                       virtualisation.vmVariantWithBootLoader.virtualisation = {
                         graphics = false;
                         restrictNetwork = true;
                         inherit (settings) memorySize cores diskSize;
-                        additionalPaths = [
-                          config.system.build.toplevel.drvPath
-                          homewortPkgs.stdenv
-                          homewortPkgs.stdenvNoCC
-                        ];
                       };
                     }
                   )
