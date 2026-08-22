@@ -32,10 +32,22 @@
             '';
           };
 
+          internalBasePort = lib.mkOption {
+            type = lib.types.port;
+            default = 42201;
+            description = ''
+              Loopback port QEMU forwards instance `n`'s guest SSH to
+              (`internalBasePort + n - 1`). Players never see these: QEMU's
+              slirp `restrict=on` drops guest replies to any client address
+              other than its own host alias, so the public port is served by a
+              host-side proxy that reaches the guest over loopback.
+            '';
+          };
+
           address = lib.mkOption {
             type = lib.types.str;
             default = "0.0.0.0";
-            description = "Address QEMU binds the forwarded SSH ports to.";
+            description = "Address the public SSH ports are bound to.";
           };
 
           memorySize = lib.mkOption {
@@ -90,6 +102,7 @@
           }:
           let
             flag = config.clan.core.vars.generators.homewort.files.flag.path;
+            login = config.clan.core.vars.generators.homewort-login.files;
 
             vmNames = map (n: "homewort-vm-${toString n}") (lib.range 1 settings.instances);
 
@@ -102,13 +115,19 @@
               (inputs.homewort.nixosConfigurations.mus-vm.extendModules {
                 modules = [
                   (
-                    { ... }:
+                    { lib, ... }:
                     {
                       virtualisation.vmVariantWithBootLoader.virtualisation = {
                         graphics = false;
                         restrictNetwork = true;
                         inherit (settings) memorySize cores diskSize;
                       };
+
+                      # The login handed to players of this deployment. The
+                      # challenge repo's own `friend` password is a default for
+                      # running it locally, not for a public box.
+                      users.users.friend.password = lib.mkForce null;
+                      users.users.friend.hashedPassword = lib.mkForce login.password-hash.value;
                     }
                   )
                 ];
@@ -120,6 +139,7 @@
                 let
                   stateDir = "homewort-vm-${toString n}";
                   port = settings.basePort + n - 1;
+                  internalPort = settings.internalBasePort + n - 1;
                 in
                 {
                   description = "homewort challenge VM ${toString n} (ssh on port ${toString port})";
@@ -128,7 +148,10 @@
 
                   environment = {
                     NIX_DISK_IMAGE = "/var/lib/${stateDir}/disk.qcow2";
-                    QEMU_NET_OPTS = "hostfwd=tcp:${settings.address}:${toString port}-:22";
+                    # Loopback only: slirp rewrites a loopback client to its own
+                    # host alias, which `restrict=on` lets the guest answer.
+                    # Public traffic arrives through the -ssh proxy unit.
+                    QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString internalPort}-:22";
                     # Root-only sysfs blob inside the guest; the ctf-flag
                     # service installs it as /etc/flag.
                     QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${flag}";
@@ -164,6 +187,47 @@
                   };
                 };
             };
+
+            # QEMU's slirp keeps a non-loopback client's address inside the
+            # guest network, and `restrict=on` then drops the guest's replies to
+            # it: the player's TCP handshake completes against slirp and the SSH
+            # banner never arrives. So the public port belongs to a host process
+            # that talks to the guest over loopback.
+            sshProxySocket = n: {
+              name = "homewort-vm-${toString n}-ssh";
+              value = {
+                description = "Public SSH port of homewort challenge VM ${toString n}";
+                wantedBy = [ "sockets.target" ];
+                listenStreams = [ "${settings.address}:${toString (settings.basePort + n - 1)}" ];
+              };
+            };
+
+            sshProxyService = n: {
+              name = "homewort-vm-${toString n}-ssh";
+              value = {
+                description = "Forwards the public SSH port of homewort challenge VM ${toString n} into the guest";
+                requires = [ "homewort-vm-${toString n}-ssh.socket" ];
+                after = [
+                  "homewort-vm-${toString n}-ssh.socket"
+                  "homewort-vm-${toString n}.service"
+                ];
+
+                serviceConfig = {
+                  ExecStart = "${config.systemd.package}/lib/systemd/systemd-socket-proxyd 127.0.0.1:${toString (settings.internalBasePort + n - 1)}";
+                  DynamicUser = true;
+                  CapabilityBoundingSet = "";
+                  NoNewPrivileges = true;
+                  ProtectSystem = "strict";
+                  ProtectHome = true;
+                  RestrictAddressFamilies = [
+                    "AF_UNIX"
+                    "AF_INET"
+                  ];
+                  RestrictSUIDSGID = true;
+                  LockPersonality = true;
+                };
+              };
+            };
           in
           {
             users.users.homewort = {
@@ -195,8 +259,30 @@
               '';
             };
 
+            # The login players are given. Public on purpose: it goes into the
+            # challenge description. Rotating it means regenerating this and
+            # redeploying, which restarts every VM.
+            clan.core.vars.generators.homewort-login = {
+              files.password.secret = false;
+              files.password-hash.secret = false;
+              runtimeInputs = [
+                pkgs.xkcdpass
+                pkgs.mkpasswd
+                pkgs.coreutils
+              ];
+              script = ''
+                xkcdpass --numwords 3 --min 4 --max 6 --delimiter - \
+                  | tr -d '\n' > "$out/password"
+                mkpasswd --method=yescrypt --stdin < "$out/password" \
+                  | tr -d '\n' > "$out/password-hash"
+              '';
+            };
+
+            systemd.sockets = lib.listToAttrs (map sshProxySocket (lib.range 1 settings.instances));
+
             systemd.services =
               lib.listToAttrs (map vmService (lib.range 1 settings.instances))
+              // lib.listToAttrs (map sshProxyService (lib.range 1 settings.instances))
               // lib.optionalAttrs (settings.resetInterval != null) (
                 lib.listToAttrs (
                   map (name: {

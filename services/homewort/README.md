@@ -8,8 +8,8 @@ Each player needs their own machine — solving the challenge means rebuilding t
 system as root — so this service runs a pool of independent QEMU VMs:
 
 - `homewort-vm-1` … `homewort-vm-N` — one systemd service per VM
-- VM `n` forwards host port `basePort + n - 1` to the guest's SSH port
-- the guest logs in as `friend` with password `friend`
+- VM `n` accepts SSH on `basePort + n - 1` (see Network for how it gets there)
+- the guest logs in as `friend` with the generated `homewort-login/password`
 
 ## Ephemerality
 
@@ -38,15 +38,47 @@ clan vars generate ctf-machine --generator homewort
 
 Rotating the flag (`clan vars set ctf-machine homewort/flag`) restarts all VMs.
 
+## Login
+
+Players log in as `friend` with the clan var `homewort-login/password`, a
+three-word passphrase generated on first use. It is public on purpose: it goes
+into the challenge description. Only its yescrypt hash reaches the machine,
+baked into the system image.
+
+```console
+clan vars generate ctf-machine --generator homewort-login
+clan vars get ctf-machine homewort-login/password
+```
+
+The guests keep `mutableUsers = true`, so the account is created with that hash
+on first boot and later activations leave `/etc/shadow` alone: a player's own
+`sudo rebuildHome` - the intended solve step - does not reset the password, even
+though the challenge repo's own `mus.nix` declares `friend` for local runs.
+
+Rotating it needs a regenerate plus a deploy, which rebuilds the image and
+restarts every VM:
+
+```console
+clan vars generate ctf-machine --generator homewort-login --regenerate
+```
+
 ## Network
 
-The guests run with QEMU's `restrict=on`: the forwarded SSH port works, but the
-VMs have no outbound access — a rooted challenge box cannot reach the internet or
-the rest of the host's network. Because of that this service images the challenge
-flake's `mus-vm`, which pins the guest's `/etc/nixos` flake inputs to Nix store
-paths and seeds the store with what an offline rebuild has to build, so
-`sudo rebuildHome` works without egress. Installing additional packages inside
-the VM does not work, which is expected.
+The guests run with QEMU's `restrict=on`: the VMs have no outbound access - a
+rooted challenge box cannot reach the internet or the rest of the host's
+network. Because of that this service images the challenge flake's `mus-vm`,
+which pins the guest's `/etc/nixos` flake inputs to Nix store paths and seeds the
+store with what an offline rebuild has to build, so `sudo rebuildHome` works
+without egress. Installing additional packages inside the VM does not work,
+which is expected.
+
+`restrict=on` also drops the guest's replies to any client address other than
+slirp's own host alias, and slirp only rewrites loopback clients to that alias.
+A player connecting from outside would complete the TCP handshake against slirp
+and then wait forever for the SSH banner. So QEMU forwards the guest's SSH port
+to `127.0.0.1:<internalBasePort + n - 1>`, and the public port is served by a
+`systemd-socket-proxyd` unit (`homewort-vm-<n>-ssh.socket`) that reaches the
+guest over loopback.
 
 ## Usage
 
@@ -59,7 +91,8 @@ inventory.instances.homewort = {
   roles.server.machines.ctf-machine = { };
   roles.server.settings = {
     instances = 6;
-    # basePort = 2201;
+    # basePort = 2201;           # public SSH port of the first VM
+    # internalBasePort = 42201;  # loopback port QEMU forwards to
     # memorySize = 4096;   # MiB per VM; a rebuild inside the VM needs a few GiB
     # cores = 2;
     # diskSize = 12288;    # MiB, sparse upper bound
@@ -89,7 +122,7 @@ challenge:
   MUS, the Multi-User System, just shipped a new feature: users may customise
   their own environment through home-manager. Log in and see for yourself.
 
-  ssh friend@ctf.immutable-byte.de -p <2201-2206>   (password: friend)
+  ssh friend@ctf.immutable-byte.de -p <2201-2206>   (password: <homewort-login/password>)
 
   Pick any port from the range; each one is your own machine. The box has no
   internet access, resets every 30 minutes, and the flag is /etc/flag, which
