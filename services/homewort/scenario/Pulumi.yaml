@@ -1,0 +1,12 @@
+name: homewort
+description: Allocates one ephemeral homewort challenge VM per chall-manager instance by driving the homewort-instance allocator on the CTF host.
+runtime:
+  name: go
+  options:
+    # Mandatory, do not remove. Without it chall-manager's OCI loader shells out
+    # to `go build` (pkg/services/oci/load.go compile()) inside the service unit,
+    # which runs with GOPROXY=off and no network, so resolving this module's
+    # dependencies would fail. The unit does have `go` on PATH -- but only
+    # because pulumi-language-go insists on it even for a prebuilt binary; that
+    # toolchain cannot fetch anything.
+    binary: ./main

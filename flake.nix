@@ -13,6 +13,12 @@
   # deliberately does not follow this flake's nixpkgs.
   inputs.homewort.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort.git";
 
+  # The CTFd plugin that proxies a challenge to chall-manager. Consumed as a
+  # plain source tree: CTFd imports it from a bind mount, there is nothing to
+  # build.
+  inputs.ctfd-chall-manager.url = "github:ctfer-io/ctfd-chall-manager/v0.10.1";
+  inputs.ctfd-chall-manager.flake = false;
+
   outputs =
     {
       self,
@@ -21,6 +27,8 @@
       ...
     }@inputs:
     let
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+
       # Usage see: https://clan.lol/docs
       clan = clan-core.lib.clan {
         inherit self;
@@ -42,6 +50,19 @@
     {
       inherit (clan.config) nixosConfigurations nixosModules clanInternals;
       clan = clan.config;
+
+      packages.x86_64-linux = {
+        chall-manager = pkgs.callPackage ./pkgs/chall-manager.nix { };
+        homewort-scenario = pkgs.callPackage ./services/homewort/scenario/package.nix { };
+      };
+
+      # `nixbot` builds these on every push.
+      checks.x86_64-linux = {
+        homewort-allocator = import ./services/homewort/allocator-test.nix {
+          inherit pkgs;
+          inherit (pkgs) lib;
+        };
+      };
       # Add the Clan cli tool to the dev shell.
       # Use "nix develop" to enter the dev shell.
       devShells =

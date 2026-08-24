@@ -24,6 +24,23 @@
         "url": "https://git.clan.lol/clan/clan-core/archive/main.tar.gz"
       }
     },
+    "ctfd-chall-manager": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1781026614,
+        "narHash": "sha256-VJai3EgzqceK+SpfH241q77r018dbft1726mGHufTpo=",
+        "owner": "ctfer-io",
+        "repo": "ctfd-chall-manager",
+        "rev": "05d4a94b2e0be717b72c0dbcc04972a935561952",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ctfer-io",
+        "ref": "v0.10.1",
+        "repo": "ctfd-chall-manager",
+        "type": "github"
+      }
+    },
     "data-mesher": {
       "inputs": {
         "flake-parts": [
@@ -221,6 +238,7 @@
     "root": {
       "inputs": {
         "clan-core": "clan-core",
+        "ctfd-chall-manager": "ctfd-chall-manager",
         "homewort": "homewort",
         "nixbot": "nixbot",
         "nixpkgs": [

@@ -2,24 +2,27 @@
 {
   _class = "clan.service";
   manifest.name = "homewort";
-  manifest.description = "Hosts the `homewort` privilege-escalation challenge as a pool of ephemeral QEMU VMs, one forwarded SSH port each, with the flag handed to each VM through fw_cfg.";
+  manifest.description = "Hosts the `homewort` privilege-escalation challenge as an on-demand pool of ephemeral QEMU VMs, one forwarded SSH port and one freshly minted flag each, handed out by chall-manager through a small allocator CLI.";
   manifest.categories = [ "Utility" ];
   manifest.readme = builtins.readFile ./README.md;
 
   roles.server = {
-    description = "Runs `instances` independent challenge VMs, each reachable on its own TCP port and reset to a pristine state on every (re)start.";
+    description = "Provides `maxSlots` challenge VM slots that chall-manager claims and releases per team through `homewort-instance`, each with its own public SSH port and its own random flag.";
 
     interface =
       { lib, ... }:
       {
         options = {
-          instances = lib.mkOption {
+          maxSlots = lib.mkOption {
             type = lib.types.ints.positive;
-            default = 6;
+            default = 8;
             description = ''
-              Number of challenge VMs to run. Players solve the challenge by
-              rebuilding the system as root, so every player needs their own
-              VM; size this to the expected number of concurrent solvers.
+              Number of concurrent challenge instances the host offers. Slots
+              are claimed on demand, but every claimed slot runs a full VM, so
+              this is a hard RAM budget: `maxSlots` × `memorySize` (8 × 4 GiB
+              on a 64 GiB machine) must still leave room for CTFd and
+              chall-manager. Claiming beyond it fails the allocator with exit
+              code 4, which surfaces as a failed deploy in the CTFd UI.
             '';
           };
 
@@ -27,7 +30,7 @@
             type = lib.types.port;
             default = 2201;
             description = ''
-              TCP port of the first VM's forwarded SSH. Instance `n` (starting
+              TCP port of the first slot's forwarded SSH. Slot `n` (starting
               at 1) listens on `basePort + n - 1`.
             '';
           };
@@ -36,7 +39,7 @@
             type = lib.types.port;
             default = 42201;
             description = ''
-              Loopback port QEMU forwards instance `n`'s guest SSH to
+              Loopback port QEMU forwards slot `n`'s guest SSH to
               (`internalBasePort + n - 1`). Players never see these: QEMU's
               slirp `restrict=on` drops guest replies to any client address
               other than its own host alias, so the public port is served by a
@@ -48,6 +51,18 @@
             type = lib.types.str;
             default = "0.0.0.0";
             description = "Address the public SSH ports are bound to.";
+          };
+
+          publicHost = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            example = "ctf.immutable-byte.de";
+            description = ''
+              Host name players are told to connect to in the allocator's
+              `connection_info`. `null` uses the machine's
+              `networking.fqdnOrHostName`, which is only right when that name
+              resolves publicly.
+            '';
           };
 
           memorySize = lib.mkOption {
@@ -75,16 +90,36 @@
             '';
           };
 
-          resetInterval = lib.mkOption {
+          flagFormat = lib.mkOption {
+            type = lib.types.str;
+            default = "nixcon{homewort_%s}";
+            description = ''
+              `printf` template the allocator fills with 32 hex characters to
+              mint an instance's flag. Must contain exactly one `%s`.
+            '';
+          };
+
+          allowUser = lib.mkOption {
             type = lib.types.nullOr lib.types.str;
-            default = "30min";
+            default = "chall-manager";
             example = null;
             description = ''
-              systemd time span after which every VM is restarted, wiping the
-              player's changes. This is the only way a VM that a player broke
-              (or left logged in) returns to the pool. `null` disables the
-              timer; VMs then only reset when they crash or are restarted by
-              hand.
+              User allowed to run `homewort-instance` through `sudo` without a
+              password. This is chall-manager, whose Pulumi scenario is the
+              only thing that claims and releases slots. `null` installs no
+              sudo rule, leaving the allocator to root only.
+            '';
+          };
+
+          readyTimeout = lib.mkOption {
+            type = lib.types.ints.positive;
+            default = 180;
+            description = ''
+              Seconds `homewort-instance create` waits for the guest's SSH
+              banner before giving up, releasing the slot again and failing
+              with exit code 5. A cold boot of the challenge image takes well
+              under a minute; the headroom is for a host under load from seven
+              other VMs.
             '';
           };
         };
@@ -101,10 +136,76 @@
             ...
           }:
           let
-            flag = config.clan.core.vars.generators.homewort.files.flag.path;
             login = config.clan.core.vars.generators.homewort-login.files;
 
-            vmNames = map (n: "homewort-vm-${toString n}") (lib.range 1 settings.instances);
+            slots = lib.range 1 settings.maxSlots;
+
+            # Where the allocator keeps its slot bookkeeping. `<n>/identity`
+            # marks the slot as claimed, `<n>/flag` is what fw_cfg hands to
+            # that slot's guest.
+            slotDir = "/var/lib/homewort-slots";
+
+            publicHost =
+              if settings.publicHost != null then settings.publicHost else config.networking.fqdnOrHostName;
+
+            allocator = import ./allocator.nix {
+              inherit pkgs lib;
+              inherit (settings)
+                maxSlots
+                basePort
+                internalBasePort
+                flagFormat
+                readyTimeout
+                ;
+              inherit publicHost;
+              # A non-secret var, already materialised at eval time: it is part
+              # of the challenge description, so it may sit in the store.
+              password = login.password.value;
+              stateDir = slotDir;
+              systemctl = "${config.systemd.package}/bin/systemctl";
+            };
+
+            # Built by ScenarioAgent's package: loose `Pulumi.yaml` and a
+            # prebuilt `main` at the derivation root, because chall-manager
+            # loads a scenario as one OCI layer per file and stats those two
+            # names - a tarball layer would not load.
+            scenario = pkgs.callPackage ./scenario/package.nix { };
+            scenarioRef = "127.0.0.1:5000/homewort:${scenario.version}";
+
+            pushScenario = pkgs.writeShellApplication {
+              name = "homewort-scenario-push";
+              runtimeInputs = [
+                pkgs.oras
+                pkgs.curl
+                pkgs.coreutils
+              ];
+              text = ''
+                set -euo pipefail
+
+                # The registry is a plain long-running process with no
+                # readiness notification, so ordering after its unit only
+                # means "was started".
+                for _ in $(seq 1 60); do
+                  if curl -sf -o /dev/null http://127.0.0.1:5000/v2/; then
+                    break
+                  fi
+                  sleep 1
+                done
+
+                # The registry is unauthenticated, but oras still opens its
+                # auth file and dies on EACCES rather than skipping it, so
+                # point it at the unit's private tmpdir instead of a $HOME it
+                # may not be allowed to read.
+                oras push --plain-http \
+                  --registry-config "$HOME/oras-auth.json" \
+                  --artifact-type application/vnd.ctfer-io.scenario \
+                  ${scenarioRef} \
+                  Pulumi.yaml:application/vnd.ctfer-io.file \
+                  main:application/vnd.ctfer-io.file
+
+                echo "homewort scenario available as ${scenarioRef}"
+              '';
+            };
 
             # `mus-vm` is the challenge's own bootable variant: same machine as
             # `mus`, plus the closure an offline `sudo rebuildHome` needs already
@@ -142,8 +243,10 @@
                   internalPort = settings.internalBasePort + n - 1;
                 in
                 {
-                  description = "homewort challenge VM ${toString n} (ssh on port ${toString port})";
-                  wantedBy = [ "multi-user.target" ];
+                  description = "homewort challenge VM in slot ${toString n} (ssh on port ${toString port})";
+                  # Nothing pulls this in: `homewort-instance create` starts it
+                  # when a team claims the slot and `destroy` stops it again.
+                  wantedBy = [ ];
                   after = [ "network.target" ];
 
                   environment = {
@@ -153,8 +256,10 @@
                     # Public traffic arrives through the -ssh proxy unit.
                     QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString internalPort}-:22";
                     # Root-only sysfs blob inside the guest; the ctf-flag
-                    # service installs it as /etc/flag.
-                    QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${flag}";
+                    # service installs it as /etc/flag. The allocator writes
+                    # this file before it starts the unit, so each claim of the
+                    # slot gets a different flag.
+                    QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${slotDir}/${toString n}/flag";
                   };
 
                   serviceConfig = {
@@ -162,6 +267,14 @@
                     # Players get root in there, so every start must begin from
                     # the pristine backing image.
                     ExecStartPre = "${pkgs.coreutils}/bin/rm -f /var/lib/${stateDir}/disk.qcow2";
+                    # Reclaims the disk the moment the slot is released, and
+                    # covers a crash or a manual stop too. The allocator
+                    # deliberately does not do this itself: it runs inside
+                    # chall-manager's mount namespace, where /var/lib is
+                    # read-only apart from the slot directory.
+                    ExecStopPost = "${pkgs.coreutils}/bin/rm -f /var/lib/${stateDir}/disk.qcow2";
+                    # A player who bricks or powers off their box gets it back,
+                    # with the same flag: the slot is still theirs.
                     Restart = "always";
                     RestartSec = 5;
 
@@ -196,7 +309,7 @@
             sshProxySocket = n: {
               name = "homewort-vm-${toString n}-ssh";
               value = {
-                description = "Public SSH port of homewort challenge VM ${toString n}";
+                description = "Public SSH port of homewort challenge slot ${toString n}";
                 wantedBy = [ "sockets.target" ];
                 listenStreams = [ "${settings.address}:${toString (settings.basePort + n - 1)}" ];
               };
@@ -205,7 +318,7 @@
             sshProxyService = n: {
               name = "homewort-vm-${toString n}-ssh";
               value = {
-                description = "Forwards the public SSH port of homewort challenge VM ${toString n} into the guest";
+                description = "Forwards the public SSH port of homewort challenge slot ${toString n} into the guest";
                 requires = [ "homewort-vm-${toString n}-ssh.socket" ];
                 after = [
                   "homewort-vm-${toString n}-ssh.socket"
@@ -213,7 +326,9 @@
                 ];
 
                 serviceConfig = {
-                  ExecStart = "${config.systemd.package}/lib/systemd/systemd-socket-proxyd 127.0.0.1:${toString (settings.internalBasePort + n - 1)}";
+                  ExecStart = "${config.systemd.package}/lib/systemd/systemd-socket-proxyd 127.0.0.1:${
+                    toString (settings.internalBasePort + n - 1)
+                  }";
                   DynamicUser = true;
                   CapabilityBoundingSet = "";
                   NoNewPrivileges = true;
@@ -237,31 +352,9 @@
             };
             users.groups.homewort = { };
 
-            clan.core.vars.generators.homewort = {
-              prompts.flag = {
-                description = "Flag handed to the homewort challenge VMs, e.g. nixcon{...}";
-                type = "line";
-              };
-              files.flag = {
-                owner = "homewort";
-                group = "homewort";
-                mode = "0400";
-                restartUnits = vmNames;
-              };
-              runtimeInputs = [ pkgs.coreutils ];
-              # Strip the trailing newline the prompt may carry, add exactly one
-              # back: the guest installs this file verbatim as /etc/flag.
-              script = ''
-                {
-                  tr -d '\r\n' < "$prompts/flag"
-                  printf '\n'
-                } > "$out/flag"
-              '';
-            };
-
             # The login players are given. Public on purpose: it goes into the
             # challenge description. Rotating it means regenerating this and
-            # redeploying, which restarts every VM.
+            # redeploying, which rebuilds the image.
             clan.core.vars.generators.homewort-login = {
               files.password.secret = false;
               files.password-hash.secret = false;
@@ -278,46 +371,70 @@
               '';
             };
 
-            systemd.sockets = lib.listToAttrs (map sshProxySocket (lib.range 1 settings.instances));
+            environment.systemPackages = [ allocator ];
+
+            # World-traversable so the VM services, which run as `homewort`
+            # under `ProtectSystem=strict`, can read their own `<n>/flag`.
+            systemd.tmpfiles.rules = [ "d ${slotDir} 0755 root root -" ];
+
+            security.sudo.extraRules = lib.optionals (settings.allowUser != null) [
+              {
+                users = [ settings.allowUser ];
+                commands = [
+                  {
+                    # The profile path, not the allocator's store path: the
+                    # Pulumi scenario hardcodes this command line and the
+                    # profile path is the only one that survives a rebuild
+                    # changing the allocator's hash.
+                    command = "/run/current-system/sw/bin/homewort-instance";
+                    options = [ "NOPASSWD" ];
+                  }
+                ];
+              }
+            ];
+
+            systemd.sockets = lib.listToAttrs (map sshProxySocket slots);
 
             systemd.services =
-              lib.listToAttrs (map vmService (lib.range 1 settings.instances))
-              // lib.listToAttrs (map sshProxyService (lib.range 1 settings.instances))
-              // lib.optionalAttrs (settings.resetInterval != null) (
-                lib.listToAttrs (
-                  map (name: {
-                    name = "${name}-reset";
-                    value = {
-                      description = "Reset ${name} to a pristine state";
-                      serviceConfig = {
-                        Type = "oneshot";
-                        ExecStart = "${config.systemd.package}/bin/systemctl restart ${name}.service";
-                      };
-                    };
-                  }) vmNames
-                )
-              );
-
-            systemd.timers = lib.optionalAttrs (settings.resetInterval != null) (
-              lib.listToAttrs (
-                map (name: {
-                  inherit name;
-                  value = {
-                    description = "Periodic reset of ${name}";
-                    wantedBy = [ "timers.target" ];
-                    timerConfig = {
-                      OnActiveSec = settings.resetInterval;
-                      OnUnitActiveSec = settings.resetInterval;
-                      Unit = "${name}-reset.service";
-                    };
+              lib.listToAttrs (map vmService slots)
+              // lib.listToAttrs (map sshProxyService slots)
+              // {
+                # chall-manager pulls the scenario from the host's registry every
+                # time it deploys an instance, so the artifact has to be there
+                # before the first team clicks "deploy".
+                homewort-scenario-push = {
+                  description = "Push the homewort Pulumi scenario to the local chall-manager registry";
+                  after = [ "chall-manager-registry.service" ];
+                  wants = [ "chall-manager-registry.service" ];
+                  wantedBy = [ "multi-user.target" ];
+                  serviceConfig = {
+                    Type = "oneshot";
+                    RemainAfterExit = true;
+                    # Layer titles are paths relative to the working directory,
+                    # and chall-manager stats `Pulumi.yaml` and `main` at the
+                    # artifact root.
+                    WorkingDirectory = "${scenario}";
+                    ExecStart = "${pushScenario}/bin/homewort-scenario-push";
+                    # oras looks for a docker config under $HOME; the store path
+                    # it works in is read-only, so give it the private tmpdir.
+                    Environment = [ "HOME=%T" ];
+                    PrivateTmp = true;
+                    DynamicUser = true;
+                    ProtectSystem = "strict";
+                    ProtectHome = true;
+                    NoNewPrivileges = true;
+                    RestrictAddressFamilies = [
+                      "AF_UNIX"
+                      "AF_INET"
+                      "AF_INET6"
+                    ];
+                    RestrictSUIDSGID = true;
+                    LockPersonality = true;
                   };
-                }) vmNames
-              )
-            );
+                };
+              };
 
-            networking.firewall.allowedTCPPorts = map (
-              n: settings.basePort + n - 1
-            ) (lib.range 1 settings.instances);
+            networking.firewall.allowedTCPPorts = map (n: settings.basePort + n - 1) slots;
           };
       };
   };
