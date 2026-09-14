@@ -34,7 +34,7 @@ The Pulumi scenario knows nothing about systemd or qcow2; it runs
 and parses the single line of JSON on stdout:
 
 ```json
-{"identity":"abc123","slot":3,"port":2203,"flag":"nixcon{homewort_<32 hex>}","connection_info":"ssh friend@ctf.immutable-byte.de -p 2203  (password: word-word-word)"}
+{"identity":"abc123","slot":3,"port":2203,"flag":"nixcon{homewort_<32 hex>}","connection_info":"ssh friend@ctf.nixcon.org -p 2203  (password: word-word-word)"}
 ```
 
 `connection_info` and `flag` are what the scenario exports to chall-manager, and
@@ -234,7 +234,7 @@ inventory.instances.homewort = {
   roles.server.machines.ctf-machine = { };
   roles.server.settings = {
     maxSlots = 8;
-    publicHost = "ctf.immutable-byte.de";
+    publicHost = "ctf.nixcon.org";
     # basePort = 2201;           # public SSH port of the first slot
     # internalBasePort = 42201;  # loopback port QEMU forwards to
     # memorySize = 4096;   # MiB per VM; a rebuild inside the VM needs a few GiB
@@ -250,7 +250,7 @@ inventory.instances.homewort = {
 ## Registering the challenge in CTFd
 
 The scoreboard is a separate service (see `../ctfd`); challenges are created in
-its admin UI (`https://ctf.immutable-byte.de/admin/challenges`). This one is no
+its admin UI (`https://ctf.nixcon.org/admin/challenges`). This one is no
 longer a static-flag challenge: it needs the `ctfd-chall-manager` plugin.
 
 - **Category**: `pwn` (or `nix`)
@@ -284,7 +284,7 @@ Before making the challenge visible, deploy an instance from the admin UI and
 verify the box is reachable from outside with the port and password it printed:
 
 ```console
-ssh friend@ctf.immutable-byte.de -p 2201
+ssh friend@ctf.nixcon.org -p 2201
 ```
 
 Then destroy it again, so team one gets slot one.

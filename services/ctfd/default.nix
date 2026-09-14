@@ -101,11 +101,24 @@
 
             hostName = lib.mkOption {
               type = lib.types.str;
-              example = "ctf.immutable-byte.de";
+              example = "ctf.nixcon.org";
               description = ''
-                Public host name CTFd is served under. A Let's Encrypt
+                Canonical public host name CTFd is served under. A Let's Encrypt
                 certificate is obtained for it, so DNS must point at this machine
                 and ports 80 and 443 must be reachable.
+              '';
+            };
+
+            redirectHostNames = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              example = [ "ctf.immutable-byte.de" ];
+              description = ''
+                Further host names that resolve to this machine and answer with
+                a permanent redirect to `hostName`. Each gets its own
+                certificate, so every name must already point here. Keeps old
+                links working while the scoreboard has a single origin for
+                cookies, CSRF checks and the Anubis challenge.
               '';
             };
 
@@ -321,38 +334,49 @@
               recommendedOptimisation = true;
               recommendedGzipSettings = true;
 
-              virtualHosts.${proxy.hostName} = {
-                forceSSL = true;
-                enableACME = true;
+              virtualHosts =
+                # Everything that is not the canonical name answers with a
+                # permanent redirect, so cookies, CSRF origin checks and the
+                # Anubis challenge only ever see one host.
+                lib.genAttrs proxy.redirectHostNames (_: {
+                  forceSSL = true;
+                  enableACME = true;
+                  globalRedirect = proxy.hostName;
+                })
+                // {
+                  ${proxy.hostName} = {
+                    forceSSL = true;
+                    enableACME = true;
 
-                locations = {
-                  "/" = {
-                    proxyPass = "http://${settings.address}:${toString settings.port}";
-                    proxyWebsockets = true;
-                    # Gate every request on an Anubis proof-of-work challenge.
-                    # https://anubis.techaro.lol/docs/admin/configuration/subrequest-auth
-                    extraConfig = lib.optionalString proxy.anubis.enable ''
-                      auth_request /.within.website/x/cmd/anubis/api/check;
-                      error_page 401 = @redirectToAnubis;
-                    '';
-                  };
-                }
-                // lib.optionalAttrs proxy.anubis.enable {
-                  "/.within.website/" = {
-                    proxyPass = "http://127.0.0.1:${toString proxy.anubis.port}";
-                    extraConfig = ''
-                      auth_request off;
-                      proxy_pass_request_body off;
-                      proxy_set_header Content-Length "";
-                    '';
-                  };
+                    locations = {
+                      "/" = {
+                        proxyPass = "http://${settings.address}:${toString settings.port}";
+                        proxyWebsockets = true;
+                        # Gate every request on an Anubis proof-of-work challenge.
+                        # https://anubis.techaro.lol/docs/admin/configuration/subrequest-auth
+                        extraConfig = lib.optionalString proxy.anubis.enable ''
+                          auth_request /.within.website/x/cmd/anubis/api/check;
+                          error_page 401 = @redirectToAnubis;
+                        '';
+                      };
+                    }
+                    // lib.optionalAttrs proxy.anubis.enable {
+                      "/.within.website/" = {
+                        proxyPass = "http://127.0.0.1:${toString proxy.anubis.port}";
+                        extraConfig = ''
+                          auth_request off;
+                          proxy_pass_request_body off;
+                          proxy_set_header Content-Length "";
+                        '';
+                      };
 
-                  "@redirectToAnubis".extraConfig = ''
-                    return 307 /.within.website/?redir=$scheme://$host$request_uri;
-                    auth_request off;
-                  '';
+                      "@redirectToAnubis".extraConfig = ''
+                        return 307 /.within.website/?redir=$scheme://$host$request_uri;
+                        auth_request off;
+                      '';
+                    };
+                  };
                 };
-              };
             };
 
             services.anubis.instances.ctfd = lib.mkIf proxy.anubis.enable {

@@ -56,7 +56,7 @@
           publicHost = lib.mkOption {
             type = lib.types.nullOr lib.types.str;
             default = null;
-            example = "ctf.immutable-byte.de";
+            example = "ctf.nixcon.org";
             description = ''
               Host name players are told to connect to in the allocator's
               `connection_info`. `null` uses the machine's

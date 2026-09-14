@@ -38,7 +38,7 @@ CTFd container ---- ctfd_chall_manager plugin                |
   |                     |                                     |
   |  <------------------+  connection_info + flag back through CTFd
   v
-ssh friend@ctf.immutable-byte.de -p 2203
+ssh friend@ctf.nixcon.org -p 2203
 ```
 
 Every arrow above is local to this machine. Nothing in the chain reaches the

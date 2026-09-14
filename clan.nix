@@ -74,7 +74,10 @@
       roles.server.settings = {
         nginx = {
           enable = true;
-          hostName = "ctf.immutable-byte.de";
+          hostName = "ctf.nixcon.org";
+          # CNAME target of the official name: still reachable, and everything
+          # that reaches it is bounced to ctf.nixcon.org.
+          redirectHostNames = [ "ctf.immutable-byte.de" ];
           acmeEmail = "admin@immutable-byte.de";
         };
       };
@@ -149,7 +152,7 @@
       roles.server.settings = {
         # 8 x 4 GiB is the RAM-safe ceiling on this host's 64 GiB.
         maxSlots = 8;
-        publicHost = "ctf.immutable-byte.de";
+        publicHost = "ctf.nixcon.org";
       };
     };
   };
