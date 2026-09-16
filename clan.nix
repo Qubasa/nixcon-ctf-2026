@@ -163,6 +163,8 @@
   machines = {
     ctf-machine = { config, pkgs, ... }: {
       environment.systemPackages = [ pkgs.helix ];
+
+      services.postgresql.package = pkgs.postgresql_17;
     };
   };
 }
