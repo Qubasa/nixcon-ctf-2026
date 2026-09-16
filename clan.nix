@@ -9,6 +9,8 @@
   modules.ctfd = import ./services/ctfd { inherit inputs; };
   modules.chall-manager = ./services/chall-manager;
   modules.gitea = ./services/gitea;
+  # Takes `inputs` to reach the challenge's own source repository.
+  modules.baas = import ./services/baas { inherit inputs; };
   # Takes `inputs` to reach the nixbot flake's module.
   modules.nixbot = import ./services/nixbot { inherit inputs; };
   # Take `inputs` to reach the challenge flakes they host.
@@ -189,6 +191,26 @@
         # OOM killer that would take CTFd down with it.
         maxSlots = 4;
         publicHost = "ctf.nixcon.org";
+      };
+    };
+
+    # Local module (see ./services/baas). One shared VM running the `baas`
+    # challenge, served on a plain-HTTP port of its own. It lives in a guest
+    # rather than on the host because the challenge hands players `nix-build`
+    # and serves any `/nix/store` path over HTTP, and the host's store holds
+    # chall-manager's scenarios while its loopback holds chall-manager's
+    # unauthenticated API.
+    baas = {
+      module = {
+        name = "baas";
+        input = "self";
+      };
+      roles.server.machines.ctf-machine = { };
+      roles.server.settings = {
+        nginx = {
+          enable = true;
+          hostName = "ctf.nixcon.org";
+        };
       };
     };
   };

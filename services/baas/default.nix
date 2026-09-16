@@ -1,0 +1,390 @@
+{ inputs, ... }:
+{
+  _class = "clan.service";
+  manifest.name = "baas";
+  manifest.description = "Hosts the `baas` challenge, an Express app that hands `nix-build` whatever expression a player posts, inside a QEMU VM of its own, and proxies it onto a public plain-HTTP port.";
+  manifest.categories = [ "Web" ];
+  manifest.readme = builtins.readFile ./README.md;
+
+  roles.server = {
+    description = "Runs the single shared baas VM, forwards its app port to loopback and serves it through an nginx vhost on `publicPort`.";
+
+    interface =
+      { lib, ... }:
+      {
+        options = {
+          port = lib.mkOption {
+            type = lib.types.port;
+            default = 3000;
+            description = ''
+              Port the app listens on inside the guest. Guest-internal, so the
+              app's own default is fine here; on the host itself 3000 is
+              gitea's.
+            '';
+          };
+
+          internalPort = lib.mkOption {
+            type = lib.types.port;
+            default = 43000;
+            description = ''
+              Loopback port QEMU forwards the guest's app port to. Players never
+              see it: QEMU's slirp `restrict=on` drops guest replies to any
+              client address other than its own host alias, and only a loopback
+              client is rewritten to that alias, so the public port has to be
+              served by a host process that reaches the guest over loopback.
+            '';
+          };
+
+          publicPort = lib.mkOption {
+            type = lib.types.port;
+            default = 8081;
+            description = ''
+              Port the nginx vhost listens on. Not 80 or 443: those belong to
+              CTFd and gitea, whose certificates cover their own names, and not
+              8080 either, because chall-manager has no listen-address flag and
+              already binds `0.0.0.0:8080`.
+            '';
+          };
+
+          memorySize = lib.mkOption {
+            type = lib.types.ints.positive;
+            default = 4096;
+            description = ''
+              RAM for the VM in MiB. Every `POST /build` evaluates the whole of
+              nixpkgs in the app process, a few hundred MiB on its own, and the
+              builds it kicks off run in the same guest.
+            '';
+          };
+
+          cores = lib.mkOption {
+            type = lib.types.ints.positive;
+            default = 2;
+            description = "Virtual CPUs for the VM.";
+          };
+
+          diskSize = lib.mkOption {
+            type = lib.types.ints.positive;
+            default = 40960;
+            description = ''
+              Size in MiB of the VM's writable overlay. It is a sparse qcow2
+              backed by the read-only system image, so this is an upper bound,
+              not an allocation. It has to hold every derivation every player
+              builds for the length of the event: nothing collects the guest's
+              store, because a garbage collection would break the store paths
+              players are still holding links to.
+            '';
+          };
+
+          flagFormat = lib.mkOption {
+            type = lib.types.str;
+            default = "nixcon{baas_%s}";
+            description = ''
+              `printf` template the `baas` generator fills with 32 hex
+              characters to mint the flag. Must contain exactly one `%s`.
+            '';
+          };
+
+          nginx = {
+            enable = lib.mkEnableOption "an nginx reverse proxy in front of the challenge VM";
+
+            hostName = lib.mkOption {
+              type = lib.types.str;
+              example = "ctf.nixcon.org";
+              description = ''
+                Host name the vhost is named after. It needs no certificate and
+                no record of its own: the vhost is plain HTTP on `publicPort`
+                and is the default server there, so it also answers a bare IP.
+              '';
+            };
+
+            anubis = {
+              enable = lib.mkOption {
+                type = lib.types.bool;
+                default = false;
+                description = ''
+                  Put Anubis in front of the app as a proof-of-work anti-bot
+                  challenge. Off by default, unlike CTFd's: this challenge is
+                  driven by `curl` and scripts, and a browser interstitial
+                  breaks every non-browser client.
+                '';
+              };
+
+              port = lib.mkOption {
+                type = lib.types.port;
+                default = 8924;
+                description = "Loopback port the Anubis instance binds to.";
+              };
+            };
+          };
+        };
+      };
+
+    perInstance =
+      { settings, ... }:
+      {
+        nixosModule =
+          {
+            config,
+            pkgs,
+            lib,
+            ...
+          }:
+          let
+            flag = config.clan.core.vars.generators.baas.files.flag;
+
+            proxy = settings.nginx;
+
+            stateDir = "/var/lib/baas-vm";
+
+            upstream = "http://127.0.0.1:${toString settings.internalPort}";
+
+            # Evaluated from the machine's own nixpkgs rather than a flake
+            # input: the guest is part of this service, not a challenge repo,
+            # and this way the `<nixpkgs>` the app evaluates against inside the
+            # guest is the same source tree the host was built from. `system`
+            # must be null, or eval-config defaults it to
+            # `builtins.currentSystem` and the flake stops evaluating purely.
+            guest = import "${pkgs.path}/nixos/lib/eval-config.nix" {
+              system = null;
+              inherit pkgs;
+              modules = [
+                (import ./guest.nix {
+                  inherit (settings) port;
+                  src-baas = inputs.baas;
+                })
+                {
+                  virtualisation.vmVariantWithBootLoader.virtualisation = {
+                    graphics = false;
+                    # No egress. A player's build runs in there, and a
+                    # fixed-output derivation runs outside the build sandbox's
+                    # network namespace, so this is the only thing between them
+                    # and the host's network.
+                    restrictNetwork = true;
+                    inherit (settings) memorySize cores diskSize;
+                  };
+                }
+              ];
+            };
+
+            # `vmWithBootLoader`, not `vm`: it boots a disk image holding its
+            # own store, while the plain VM variant would 9p-mount the host's
+            # /nix/store into the guest - which is exactly what this VM exists
+            # to prevent, since the app serves any store path over HTTP.
+            vm = guest.config.system.build.vmWithBootLoader;
+
+            proxyTimeouts = ''
+              # A cold nix-build in the guest takes minutes and outruns nginx's
+              # 60s default, which would hand the player a 504 while the build
+              # keeps running.
+              proxy_read_timeout 600s;
+              proxy_send_timeout 600s;
+            '';
+
+            # https://anubis.techaro.lol/docs/admin/configuration/subrequest-auth
+            anubisGate = lib.optionalString proxy.anubis.enable ''
+              auth_request /.within.website/x/cmd/anubis/api/check;
+              error_page 401 = @redirectToAnubis;
+            '';
+          in
+          lib.mkMerge [
+            {
+              users.users.baas = {
+                isSystemUser = true;
+                group = "baas";
+                description = "Runs the baas challenge VM";
+              };
+              users.groups.baas = { };
+
+              # The one secret of this challenge. It is handed to the guest
+              # through fw_cfg and only ever reaches the guest's store, never
+              # this machine's.
+              clan.core.vars.generators.baas = {
+                files.flag = {
+                  secret = true;
+                  # QEMU runs as `baas` and opens the fw_cfg file itself.
+                  owner = "baas";
+                  group = "baas";
+                  mode = "0400";
+                  # A regenerated flag is only picked up by a fresh guest boot:
+                  # the guest reads the blob once, in the app unit's
+                  # ExecStartPost.
+                  restartUnits = [ "baas-vm.service" ];
+                };
+                runtimeInputs = [
+                  pkgs.coreutils
+                  pkgs.openssl
+                ];
+                script = ''
+                  printf '${settings.flagFormat}' "$(openssl rand -hex 16)" > "$out/flag"
+                '';
+              };
+
+              systemd.services.baas-vm = {
+                description = "baas challenge VM";
+                # One long-lived VM shared by every player, so unlike the
+                # homewort pool there is no allocator and nothing to claim: it
+                # comes up with the machine and stays up.
+                wantedBy = [ "multi-user.target" ];
+                after = [ "network.target" ];
+
+                environment = {
+                  # Versioned by the image it overlays. A plain restart reuses
+                  # the overlay, which is the point - players keep working
+                  # against store paths they built earlier. But a fixed
+                  # filename would also survive a *new* image, and qcow2 keeps
+                  # the old backing file in its header, so the guest would go
+                  # on booting the system it was first created against and no
+                  # redeploy of this service would ever reach it.
+                  NIX_DISK_IMAGE = "${stateDir}/disk-${
+                    builtins.substring 0 12 (baseNameOf vm)
+                  }.qcow2";
+                  # Loopback only, see `internalPort`.
+                  QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${
+                    toString settings.internalPort
+                  }-:${toString settings.port}";
+                  # Root-only sysfs blob inside the guest. Keeping the flag out
+                  # of the guest's NixOS configuration is the point: this app
+                  # serves /nix/store over HTTP, so a flag in
+                  # `environment.etc` would be handed out with one request.
+                  QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${flag.path}";
+                };
+
+                serviceConfig = {
+                  ExecStart = "${vm}/bin/run-baas-vm";
+                  # Deliberately no wipe of the overlay on start, which is the
+                  # other difference to the homewort pool: players keep working
+                  # against store paths they built earlier, so a restart after
+                  # a crash has to find them again. A new image gets a new
+                  # overlay through `NIX_DISK_IMAGE` instead. The flag is
+                  # re-registered on every guest boot by the app unit itself.
+                  Restart = "always";
+                  RestartSec = 5;
+
+                  User = "baas";
+                  Group = "baas";
+                  SupplementaryGroups = [ "kvm" ];
+                  StateDirectory = "baas-vm";
+                  StateDirectoryMode = "0700";
+                  PrivateTmp = true;
+
+                  NoNewPrivileges = true;
+                  ProtectSystem = "strict";
+                  ProtectHome = true;
+                  ProtectKernelTunables = true;
+                  ProtectControlGroups = true;
+                  RestrictAddressFamilies = [
+                    "AF_UNIX"
+                    "AF_INET"
+                    "AF_INET6"
+                  ];
+                  RestrictSUIDSGID = true;
+                  LockPersonality = true;
+                };
+              };
+            }
+
+            (lib.mkIf proxy.enable {
+              networking.firewall.allowedTCPPorts = [ settings.publicPort ];
+
+              services.nginx = {
+                enable = true;
+                # `recommendedProxySettings` is load bearing, not cosmetic: it
+                # sets `X-Forwarded-For`, and the app keys every player's build
+                # list on the address it finds there.
+                recommendedProxySettings = true;
+                recommendedTlsSettings = true;
+                recommendedOptimisation = true;
+                recommendedGzipSettings = true;
+
+                # A rate-limit zone has to live in the http block. `POST /build`
+                # evaluates all of nixpkgs in the guest, seconds of one of its
+                # `cores` per request, so it is the one endpoint where a single
+                # client can starve everybody else. One request every five
+                # seconds with a burst of five is well above the pace anyone
+                # writes Nix expressions at, and an order of magnitude below
+                # what it takes to keep the guest busy.
+                appendHttpConfig = ''
+                  limit_req_zone $binary_remote_addr zone=baas_build:4m rate=12r/m;
+                '';
+
+                # Keyed "baas", not by the host name: nginx vhosts are keyed by
+                # attribute, and CTFd already owns a `${proxy.hostName}` vhost
+                # on 443. Same name, different port, so it needs its own key
+                # and an explicit `serverName`.
+                virtualHosts.baas = {
+                  serverName = proxy.hostName;
+                  # Plain HTTP, no ACME: this vhost is not on 80, and HTTP-01
+                  # only ever answers there. `default` so the vhost also serves
+                  # a request that arrives with a bare IP in `Host`.
+                  default = true;
+                  listen = [
+                    {
+                      addr = "0.0.0.0";
+                      port = settings.publicPort;
+                    }
+                    {
+                      addr = "[::]";
+                      port = settings.publicPort;
+                    }
+                  ];
+
+                  locations = {
+                    "/" = {
+                      proxyPass = upstream;
+                      extraConfig = proxyTimeouts + anubisGate;
+                    };
+
+                    # The expensive endpoint gets its own location for the rate
+                    # limit. `GET /build` only renders a form, but it shares the
+                    # zone: it is cheap either way.
+                    "/build" = {
+                      proxyPass = upstream;
+                      extraConfig = ''
+                        limit_req zone=baas_build burst=5 nodelay;
+                        limit_req_status 429;
+                      ''
+                      + proxyTimeouts
+                      + anubisGate;
+                    };
+                  }
+                  // lib.optionalAttrs proxy.anubis.enable {
+                    "/.within.website/" = {
+                      proxyPass = "http://127.0.0.1:${toString proxy.anubis.port}";
+                      extraConfig = ''
+                        auth_request off;
+                        proxy_pass_request_body off;
+                        proxy_set_header Content-Length "";
+                      '';
+                    };
+
+                    # `$host` drops the port, and this vhost does not live on a
+                    # default one, so the redirect has to carry the `Host`
+                    # header through verbatim.
+                    "@redirectToAnubis".extraConfig = ''
+                      return 307 /.within.website/?redir=$scheme://$http_host$request_uri;
+                      auth_request off;
+                    '';
+                  };
+                };
+              };
+
+              services.anubis.instances.baas = lib.mkIf proxy.anubis.enable {
+                settings = {
+                  # Subrequest-auth mode: nginx proxies to the app, Anubis only
+                  # answers the auth_request check, so no upstream target here.
+                  TARGET = " ";
+                  BIND = "127.0.0.1:${toString proxy.anubis.port}";
+                  BIND_NETWORK = "tcp";
+                  OG_PASSTHROUGH = true;
+                  REDIRECT_DOMAINS = proxy.hostName;
+                };
+                policy.settings.status_codes = {
+                  CHALLENGE = 200;
+                  DENY = 403;
+                };
+              };
+            })
+          ];
+      };
+  };
+}

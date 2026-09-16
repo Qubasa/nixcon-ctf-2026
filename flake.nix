@@ -18,6 +18,11 @@
   # cannot work without.
   inputs.homewort-v2.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort-v2.git";
 
+  # The `baas` challenge. A plain source tree, not a flake: the service builds
+  # the Express app from it and the repo has no flake.nix of its own.
+  inputs.baas.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/baas.git";
+  inputs.baas.flake = false;
+
   # The CTFd plugin that proxies a challenge to chall-manager. Consumed as a
   # plain source tree: CTFd imports it from a bind mount, there is nothing to
   # build.
@@ -60,6 +65,7 @@
         chall-manager = pkgs.callPackage ./pkgs/chall-manager.nix { };
         homewort-scenario = pkgs.callPackage ./services/homewort/scenario/package.nix { };
         homewort-v2-scenario = pkgs.callPackage ./services/homewort-v2/scenario/package.nix { };
+        baas = pkgs.callPackage ./services/baas/package.nix { src-baas = inputs.baas; };
       };
 
       # `nixbot` builds these on every push.

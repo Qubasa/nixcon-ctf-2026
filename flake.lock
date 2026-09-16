@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "baas": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786543825,
+        "narHash": "sha256-MTymmTJuqAUBSCM4fjQfm2FXEowuj7bqCh1kRaJovlI=",
+        "ref": "refs/heads/main",
+        "rev": "82986e22f6b05d5ef20f4219f79150365cd43f15",
+        "revCount": 3,
+        "type": "git",
+        "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/baas.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/baas.git"
+      }
+    },
     "clan-core": {
       "inputs": {
         "data-mesher": "data-mesher",
@@ -294,6 +310,7 @@
     },
     "root": {
       "inputs": {
+        "baas": "baas",
         "clan-core": "clan-core",
         "ctfd-chall-manager": "ctfd-chall-manager",
         "homewort": "homewort",
