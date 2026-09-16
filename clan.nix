@@ -150,8 +150,14 @@
       };
       roles.server.machines.ctf-machine = { };
       roles.server.settings = {
-        # 8 x 4 GiB is the RAM-safe ceiling on this host's 64 GiB.
-        maxSlots = 8;
+        # Measured on this host (i7-7700, 8 threads, 64 GiB): a claimed VM
+        # sits at 750 MiB RSS idle and 2.4 GiB after an in-guest rebuild, and
+        # costs ~0.16 of a hardware thread while idle. 12 x 4 GiB is the
+        # worst-case RAM budget if every guest touches its full `memorySize`,
+        # which leaves ~14 GiB for CTFd, chall-manager and page cache; all 12
+        # rebuilding at once measured 29 GiB, 146 s per rebuild against the
+        # 46 s a lone one takes.
+        maxSlots = 12;
         publicHost = "ctf.nixcon.org";
       };
     };

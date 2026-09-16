@@ -19,8 +19,8 @@ pool of identical boxes. It offers `maxSlots` empty slots and lets
 
 Nobody operates this during the event. A team clicks "deploy" in CTFd, the
 plugin asks chall-manager, chall-manager runs the Pulumi scenario, the scenario
-runs `homewort-instance create`, and the team gets a port, a password and two
-hours. Solving it, or the two hours running out, releases the slot again.
+runs `homewort-instance create`, and the team gets a port, a password and 45
+minutes. Solving it, or the timeout running out, releases the slot again.
 
 ## The allocator
 
@@ -107,7 +107,7 @@ flag.
 
 There is no reset timer any more. Instances no longer have to be recycled
 blindly, because chall-manager destroys them: on a correct flag submission
-(`destroy_on_flag`) and at the latest when the two-hour timeout expires. Its
+(`destroy_on_flag`) and at the latest when the 45-minute timeout expires. Its
 janitor sweeps expired instances, which runs `homewort-instance destroy` and
 frees the slot.
 
@@ -185,13 +185,33 @@ that is not theirs.
 
 ## Capacity
 
-`maxSlots` (default 8) is a RAM budget, not a soft limit: every claimed slot
-runs a real VM with `memorySize` (default 4096 MiB). Eight slots is 32 GiB of
-this host's 64, which leaves room for CTFd, chall-manager and the page cache the
-overlays churn through. Raising it means raising the host's RAM.
+`maxSlots` is a hard cap on concurrent instances, not a soft limit: every
+claimed slot runs a real VM. Measured on this host (i7-7700, 4 cores / 8
+threads, 64 GiB, KVM):
 
-Exhaustion is neither queued nor pooled. The ninth team's deploy fails, visibly,
-in the CTFd UI; nothing silently hands two teams the same box.
+| Per claimed slot                 | Cost                                          |
+| -------------------------------- | --------------------------------------------- |
+| idle, player just logged in       | 750 MiB RSS, ~0.16 of a hardware thread      |
+| after one in-guest `rebuildHome`  | 2.4 GiB RSS                                  |
+| qcow2 overlay after a session     | ~0.7 GiB (`diskSize` is a sparse bound)      |
+| cold claim to SSH banner          | ~31 s, even with all 12 booting at once      |
+| `rebuildHome` wall time           | 46 s alone, 146 s with all 12 rebuilding     |
+
+So the binding resource is RAM only in the worst case, where every guest
+touches its full `memorySize`: 12 x 4 GiB leaves ~14 GiB for CTFd,
+chall-manager and page cache. Measured with 12 slots claimed and every guest
+rebuilding, the pool sits at 29 GiB and the host keeps 33 GiB available. CPU is
+the softer limit: 12 idle guests already burn ~1.5 threads of 8, and a 12-way
+rebuild storm runs at 70 % CPU pressure without a single failure, because
+`readyTimeout` covers the guest's boot, not a player's rebuild.
+
+Exhaustion is neither queued nor pooled. The thirteenth team's deploy fails,
+visibly, in the CTFd UI; nothing silently hands two teams the same box. Since
+CTFd runs in `user_mode = users` on this deployment, a slot is claimed per
+player, not per team, so `maxSlots` is the number of players who can hold a box
+at the same instant. Throughput over an event is the other half of the sum: a
+slot is only freed by a flag submission or by the timeout, so shortening the
+timeout buys more turns per hour than adding slots does.
 
 The host must have KVM (`/dev/kvm`); the VM services run as the unprivileged
 `homewort` user in the `kvm` group.
@@ -233,7 +253,7 @@ inventory.instances.homewort = {
   };
   roles.server.machines.ctf-machine = { };
   roles.server.settings = {
-    maxSlots = 8;
+    maxSlots = 12;
     publicHost = "ctf.nixcon.org";
     # basePort = 2201;           # public SSH port of the first slot
     # internalBasePort = 42201;  # loopback port QEMU forwards to
@@ -258,10 +278,10 @@ longer a static-flag challenge: it needs the `ctfd-chall-manager` plugin.
 - **Value**: ~200 (author rates it "easier end of medium")
 - **Type**: `dynamic_iac`
 - **Scenario**: `127.0.0.1:5000/homewort:0.1.0`
-- **Timeout**: `7200` — two hours, after which the janitor destroys the instance
+- **Timeout**: `2700` — 45 minutes, after which the janitor destroys the instance
 - **Destroy on flag**: on; a solved instance frees its slot immediately
 - **Mana cost**: `0`, mana is disabled on this deployment
-- **Shared**: off. One instance per team is the whole point.
+- **Shared**: off. One instance per player is the whole point.
 - **Flag**: none. The scenario reports the instance's own flag to chall-manager,
   which checks submissions against it.
 - **Description**:
@@ -273,7 +293,7 @@ longer a static-flag challenge: it needs the `ctfd-chall-manager` plugin.
   Click "deploy" to get your own machine. The connection details, including the
   password, show up here once it is up; give it a minute to boot.
 
-  The box has no internet access, it is yours alone for two hours, and the flag
+  The box has no internet access, it is yours alone for 45 minutes, and the flag
   is /etc/flag, which only root can read.
   ```
 
