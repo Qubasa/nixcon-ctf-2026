@@ -13,6 +13,11 @@
   # deliberately does not follow this flake's nixpkgs.
   inputs.homewort.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort.git";
 
+  # The homewort-v2 CTF challenge (nixosConfigurations.mus / mus-vm). Same
+  # deal, and it additionally pins a patched home-manager fork the challenge
+  # cannot work without.
+  inputs.homewort-v2.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort-v2.git";
+
   # The CTFd plugin that proxies a challenge to chall-manager. Consumed as a
   # plain source tree: CTFd imports it from a bind mount, there is nothing to
   # build.
@@ -54,11 +59,16 @@
       packages.x86_64-linux = {
         chall-manager = pkgs.callPackage ./pkgs/chall-manager.nix { };
         homewort-scenario = pkgs.callPackage ./services/homewort/scenario/package.nix { };
+        homewort-v2-scenario = pkgs.callPackage ./services/homewort-v2/scenario/package.nix { };
       };
 
       # `nixbot` builds these on every push.
       checks.x86_64-linux = {
         homewort-allocator = import ./services/homewort/allocator-test.nix {
+          inherit pkgs;
+          inherit (pkgs) lib;
+        };
+        homewort-v2-allocator = import ./services/homewort-v2/allocator-test.nix {
           inherit pkgs;
           inherit (pkgs) lib;
         };

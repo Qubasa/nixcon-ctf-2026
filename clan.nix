@@ -11,8 +11,9 @@
   modules.gitea = ./services/gitea;
   # Takes `inputs` to reach the nixbot flake's module.
   modules.nixbot = import ./services/nixbot { inherit inputs; };
-  # Takes `inputs` to reach the challenge flake it hosts.
+  # Take `inputs` to reach the challenge flakes they host.
   modules.homewort = import ./services/homewort { inherit inputs; };
+  modules.homewort-v2 = import ./services/homewort-v2 { inherit inputs; };
 
 
   vars.settings.secretStore = "age";
@@ -132,10 +133,14 @@
       };
       roles.server.machines.ctf-machine = { };
       roles.server.settings = {
-        # The homewort allocator runs as a child of chall-manager, so it needs
-        # its slot directory writable inside that service's mount namespace.
-        # Keep this in sync with the slot directory in ./services/homewort.
-        scenarioWritePaths = [ "/var/lib/homewort-slots" ];
+        # The homewort allocators run as children of chall-manager, so they
+        # need their slot directories writable inside that service's mount
+        # namespace. Keep in sync with the slot directories in
+        # ./services/homewort and ./services/homewort-v2.
+        scenarioWritePaths = [
+          "/var/lib/homewort-slots"
+          "/var/lib/homewort-v2-slots"
+        ];
       };
     };
 
@@ -158,6 +163,31 @@
         # rebuilding at once measured 29 GiB, 146 s per rebuild against the
         # 46 s a lone one takes.
         maxSlots = 12;
+        publicHost = "ctf.nixcon.org";
+      };
+    };
+
+    # Local module (see ./services/homewort-v2). The same pool machinery for
+    # the harder second variant, on its own ports, state directory and
+    # allocator so the two pools cannot collide.
+    homewort-v2 = {
+      module = {
+        name = "homewort-v2";
+        input = "self";
+      };
+      roles.server.machines.ctf-machine = { };
+      roles.server.settings = {
+        # Deliberately small. The nominal `maxSlots * memorySize` budget is
+        # already fully spoken for by the 12-slot `homewort` pool above, so
+        # these four slots are an overcommit against it, justified by what the
+        # pools actually touch rather than what they are allowed to. Measured
+        # on this host: a v2 guest sits at 2.38 GiB RSS after a full in-guest
+        # `nixos-rebuild switch` (55 s, offline) and leaves a 660 MiB overlay,
+        # so four of them add ~10 GiB to the 29 GiB the v1 pool measured with
+        # all 12 guests rebuilding. Exhaustion is a visible failed deploy in
+        # CTFd (allocator exit 4), which is the failure mode to prefer over an
+        # OOM killer that would take CTFd down with it.
+        maxSlots = 4;
         publicHost = "ctf.nixcon.org";
       };
     };
