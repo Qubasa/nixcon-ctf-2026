@@ -16,7 +16,7 @@
   # Take `inputs` to reach the challenge flakes they host.
   modules.homewort = import ./services/homewort { inherit inputs; };
   modules.homewort-v2 = import ./services/homewort-v2 { inherit inputs; };
-
+  modules.rtunreal = import ./services/rtunreal { inherit inputs; };
 
   vars.settings.secretStore = "age";
   vars.settings.recipients.default = [
@@ -24,7 +24,7 @@
     "age1pq1azezy5y8exr3ppl2swc7d7efgek8stpvzhneyrgnud6nqs3lxmdjr223fgt2x8twc890ydyhxaykarvgwr93e3grckgtc3g5nruvgg7xc8qr4sx3kyd6jp642tsms2z4e4py4f5dzgcvpc98gtrvqjcz0m7kk49dffh7q9w8w06eacnftky8x92054m98c38xz6n853cw88sc9xdl3w8xsfk35vc735yp5zljl4c7sqn7zq656nmd9yfg9cnwzvxwvgg8ptyhju3dsf3dqqjgt5gff95kqqqz2zuuhjzh39hctr9uem3xkqu6wdcmqtqvzfmf9n46swcywrtlvcz3m38s4lud09d3jlsjczkpx3jzfc8yr30rd8vvj0t53c8at3x4tmp2ulhvhg97z7fa7qrxtmvnw98pk60wczfcxgsv5f4tpwgeknntw8cx39m0flmeyj99xa87kv54cuzpppn00xmwnygtu6fkuhr4cqwtx9rk7r4769vudymuug45q9x3q9y6fkqtkg9zcfhf0m9y9puzgdpvqayyywz7zmgp3u8y2rd29eec9vdtxrxl3s37ehrxjuvspd24flfpefzc7m2zmpprpsz3vdnggu7r8qnx4zq3lnh4fsp3ncqyj9ch37yjwkgjkemp3cy08gyku5rwqmydlanvzkus772zvuzn9tnnz9g4pevmqchgp98kk8xgz89rze2h2axd3kktu5783ke327emecfhh4k4mmzc5pfkcas6qxh4vdzqjmkvknchkz99zsj3dw5eejgw5f8hh389hda53v8kghse9s4sxshh0fevssucfthwv6h392rgpgyksjcju8v56mddsypf4pgyky3sx9xkvkdwglf7aeg9947hr495c5u2tqegjf7zcpwwgn9r92kk9sf8a4tgvnyy3npqye5z25q4vf88zps9gapvcqmkacpl6zv235g9yyxcauh6y3rmumv5tasz8hfe6knjqq3evkpxduccr98k3nr3eh5q9jdz6gc7dfhlmjrcwj5h72lsptqu9sxj258deyudc98fxgkx5x0wqzld2nu3ratzyh44gu7z6xspnrl5wtm6hvqq6m32c0sspj5xqyd3dkpq97ys2j2zcj427ksvz9en9mzxrvzc6cpkwftkw8v6phgpse8sdephmzkwaxrgwlx02e4njqxt594tgnf9jrvdjg2wg7l0dumd89jmwsc824rkmvdc5svp7qhru2gs7e83x6uddxdhfpqtx23nxmcylkjtxe3prn6j64dt665kvym8h28fr84s94fgc06u6d9djjfaz22cshldt7t7k3qcsfeswyhtc2rfncrp205qquhh2ulkstnx2z5e006wqu8v264ce562mc9sv45ckts54nux8zfkft0p4j9eucuj4jy0szekxm722s6jwprwgs2k7vvkjv32j5nxx2ff2j2ln5vdkg9gj5wmssjye6x03cfnl6hk4840s3qszd4qf227cppmxw3fzqh28ycgrxywkrn4ausg0fcc8m0fyz272htpa9f73ph3evkymey43g8kufm88r54244svcqx74sxgp9eyrlf8rr4ck9cuzp2s063ygkcgljjvtvxecvtafgkvk6xx9mdplp8czgfn5gvewtd28akwczs293x3rhz09u4zvxp43sq524ff2s8kcctcstrv6rvmr0zdn4uwktt42xczry3m5uz0nuqley8r9s6awtqxr2dxee2yykvuwxh2q83umjzsn5svf29ey5jjutw9tz8hqvhu7fes44qklgxpl0xxh94xaj8d33kuzf4cwgege6ck25mawk84tkyjvdvx9hxrv4yqejy7g74gqkavum45w6cdgv75f7gkncsfr792tfkmaavtdjy22hqa595n9ympg0663vystccc5p5m8azyyqevsg" # 3ulalia
     "age1pq1h44kjz6frjey8g6rfvxewxqua9cp7rg4f387keq8srzudxkvew79x2jqprv3z5ejwylmrx7q6hys9wghxz53vf0f2g6gtu6aa2ertf5tt9vue90esp0maet3v0c68j82wkuy89mlu6s70u3043ru55uewff0ctjp2xplsc9hfm3klymqndq52fxcpjxv3r93dq36zdy4h5gm0jf45zu26xyvm2tej9q4z4vlzeny6z3cmswv49c4heemslswvy7ec9xus72uctw8zcl9yp6pjhdn3qcjguru4js6n4wzfh48xuzfk559y8xt9c6yfgw9q723k9wc5ssn5ccxj4gztgznrhvdh83q57qhs5ndd0wts0k883hcjwu4mqfdvxal7wekdt7jwaxnewvfxxe20cupmmmhgzsx3pd348sk0f9fk27xxedjeaatymnxcr6gn9rax9prmyr6fx7prwvq3rtuxc3cq33zu6yssvw9nv6vw40ukqez53nxnavkul5cncwvqcy6pyc3vv6dyj9uuxuhe6w0suqyu68w54pnpgq6z7rm55w6ev7lhz54075zraxt28nrdap8sqqayw9c54ankdfmhdzct7hqwdaqrnyqgk6hx3v9svnq2eg0sq30udh9dlyhw24vwr8qd7s63pdztjl4xpukcfpghtwyqwdu4nf99sztsecm64vmfl5uxhnngpfyud3rw3ms0fnhm79vnyl7xvtdzmyjufktnxuuwew94mcujnauk694qcregg6xsmlv8u9q3g3w09dnqmx2n2x2ylcs9l2anxwun2vh5yp298az7y4zqagkcm9ycwr8fesqtzs896mkngrcg7tzlgfvyyv0w4metqzpwgpj5l7ptsj9vd3rd5pes7fhnnmazq8zef0pqvjc0vffs4rvpkqgvwmc5u9qn64f6f99rymjj6csq8ureqnj9ppz2aazvyygtsn9kw50tw76dhpvkc2gqqsm45npc505h24525pnlysupdwps4fywezf6d6d76rvwjv4grtyp97aw858qw22ac2xp53qmltytwak2rh4wxh65ju948nxl9ht2cxaknrm9w3cvcy34pd27zl8qsshypm7ve76fd6qpc96cm54jsm0zhqm7dtl7x7yeqffqt0hhnxxytad6je4pjajsq3hedptfuf6wkq0j5kz0kwxhumfwey3pcusjsvz77vas7py5yauxu6z4cg72tg2syue0m9vmzetdf7zhx4sg82u8s3lfvpxmx5xe3z4vzp8z62g5vgnln92fluhcwdh9g8v28p4d2m4zemtk6ay96quq2grxg0g5ajm8crsv3uhevwpcv7r8y4kvw586xghhydk4cm5na8rys4t8jhxmwcwpe9uv68gf7aee9nrj7h67c5hr6u2gm39d427n2attyxhpwzfqptmjl8vrlk5pwj0zavumufut8wtlcvjrjccvpxja30s8xzvktuf4eerrlgan2su9nqe834dmeycn3082qqjwwzxw4h4zf5fqta9g95xdph5gqgshqel9zmuxsd87n85fpj8wz6yjq8wykm8hf9rkyx4zgynzpzta9729u9c7yunagdcnl2kqn4xqfspyyew40afu0jmgqjyypucgw5ww0xwrkak0gvptfxgpdvmu0qrzfkyvtj4qevz4szldwgf0ynxqynvu5gka7txddgqvm9vy59q4kgug5k9762px9r6y9m97qgrhuug3l5hjlj9che0tfy9aysesg3enq26v7zef6mqc902gglvuez0geu907xf8ll68fs4v5yztrxpz5z3vhwunu5j0n4jlzf6dkpj6yapqjg4y6xd323ufw3ns0f67l0gywgf7dglw38qt7frsdyyv5v0z3vaksejqsflf7vyz25psyyqsxzy7n6rlkf0j8zsv79cxvtvt79z" # virchau
   ];
-  
+
   inventory.machines = {
     # Define machines here.
     ctf-machine = { };
@@ -43,8 +43,10 @@
         # Alternatively set 'users.users.root.openssh.authorizedKeys.keys' in each machine
         "admin-machine-1" =
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGXfyed2m6hEB5gXTclAYSdi8tDQJF5HQe+rop7Pj8ik lhebendanz@wintux";
-        "3ulalia" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDTVytCp3QF/PtqJ9LH4zYyT/UJC5JyhmEsD3YBBQKko eulalia@catalina";
-        "virchau" = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCxZL3sVGCdUlD3sivB7kFTJGIdgXjzggXLshqIsxqkmMk2zLUOfB3vWcgt9k9jhhoH1kJRe06eOsZsUzNoUPtBs4crMoRYDj8PBUsKD6BgLa96/PRGk7jm5hSAqedDC7yTuGp0u5pVlyplqY7eiacKu/TyM84V9rOT+9tFT8334GOBdHEuFpDVwdc2xJMr/AGu1tL9fpgLSYSkHyFiCn1/t1BTNt9wf8wWw3vLhHxBHI119LOTf9na2xscAFEFRQxy5Q1HDf15AuAbuhaMb8siZZtQRqlElJadUpPfjfQdR7qcLandbfrhI4oVaT2bYyvLV7AXaO8pFDgPgjNzfQ7lfJvdH7jSSjsUMh9hQhnat41yw9hiHhTrn7wBojH6lg32R7I+GMXoMmsEQof8XTdzf67xVEYKgqQlF1zVCVZ2Y3yNk1AFwKbR13hrDFCDI/7cy7BkcD179qCb+C73zHzAF0DYxA7k4Sr/WTS0ihjbfOQvHblwrdYvugHXQyK7fEgeaL+CjeqpX6OFc4cnAYwe6Rlzk+mZj8lTo0cXGDi35cd2y2UYmdU79+GyzNPvR62GnACwXAWiSyKTIwIpIxvoEpQEZ3ZXYHq3UqTg4fuin9LeX2pNIekVYchoIdTbZbkPN1hMtPZl+aw7k+baZSmTXnoN8WVLtRsj75DcczhCdQ== virchau13@hexular.net";
+        "3ulalia" =
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDTVytCp3QF/PtqJ9LH4zYyT/UJC5JyhmEsD3YBBQKko eulalia@catalina";
+        "virchau" =
+          "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCxZL3sVGCdUlD3sivB7kFTJGIdgXjzggXLshqIsxqkmMk2zLUOfB3vWcgt9k9jhhoH1kJRe06eOsZsUzNoUPtBs4crMoRYDj8PBUsKD6BgLa96/PRGk7jm5hSAqedDC7yTuGp0u5pVlyplqY7eiacKu/TyM84V9rOT+9tFT8334GOBdHEuFpDVwdc2xJMr/AGu1tL9fpgLSYSkHyFiCn1/t1BTNt9wf8wWw3vLhHxBHI119LOTf9na2xscAFEFRQxy5Q1HDf15AuAbuhaMb8siZZtQRqlElJadUpPfjfQdR7qcLandbfrhI4oVaT2bYyvLV7AXaO8pFDgPgjNzfQ7lfJvdH7jSSjsUMh9hQhnat41yw9hiHhTrn7wBojH6lg32R7I+GMXoMmsEQof8XTdzf67xVEYKgqQlF1zVCVZ2Y3yNk1AFwKbR13hrDFCDI/7cy7BkcD179qCb+C73zHzAF0DYxA7k4Sr/WTS0ihjbfOQvHblwrdYvugHXQyK7fEgeaL+CjeqpX6OFc4cnAYwe6Rlzk+mZj8lTo0cXGDi35cd2y2UYmdU79+GyzNPvR62GnACwXAWiSyKTIwIpIxvoEpQEZ3ZXYHq3UqTg4fuin9LeX2pNIekVYchoIdTbZbkPN1hMtPZl+aw7k+baZSmTXnoN8WVLtRsj75DcczhCdQ== virchau13@hexular.net";
       };
     };
 
@@ -215,6 +217,24 @@
           enable = true;
           hostName = "ctf.nixcon.org";
         };
+      };
+    };
+
+    # Local module (see ./services/rtunreal). The submission desk for the
+    # `rtunreal` build challenge: players send the patch that makes the
+    # challenge flake's checks pass, a throwaway guest rebuilds those checks
+    # offline, and the flag is printed only when all of them come back green.
+    # Same reason as baas for the VM, plus one of its own: grading means
+    # evaluating player-written Nix, and Nix evaluates unsandboxed - on this
+    # host that would put `builtins.readFile` next to the flag.
+    rtunreal = {
+      module = {
+        name = "rtunreal";
+        input = "self";
+      };
+      roles.server.machines.prod-ctf-machine = { };
+      roles.server.settings = {
+        nginx.hostName = "ctf.nixcon.org";
       };
     };
   };

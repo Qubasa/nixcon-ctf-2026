@@ -23,6 +23,18 @@
   inputs.baas.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/baas.git";
   inputs.baas.flake = false;
 
+  # The `rtunreal` challenge ("Pimp my PHP"). A source tree, not a flake input
+  # that gets evaluated: the service grades submissions against the tree as
+  # published and hands players the same bytes as a tarball.
+  inputs.rtunreal.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/rtunreal-challenge.git";
+  inputs.rtunreal.flake = false;
+
+  # The nixpkgs that challenge's own flake.lock pins, by the URL the lock
+  # resolved to. The grading guest has no egress, so it ships this tree and
+  # overrides the challenge's input with it. `services/rtunreal/guest.nix`
+  # throws if the two ever drift apart.
+  inputs.rtunreal-nixpkgs.url = "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1073483.c7def046b9a8/nixexprs.tar.zst";
+
   # The CTFd plugin that proxies a challenge to chall-manager. Consumed as a
   # plain source tree: CTFd imports it from a bind mount, there is nothing to
   # build.
@@ -66,6 +78,15 @@
         homewort-scenario = pkgs.callPackage ./services/homewort/scenario/package.nix { };
         homewort-v2-scenario = pkgs.callPackage ./services/homewort-v2/scenario/package.nix { };
         baas = pkgs.callPackage ./services/baas/package.nix { src-baas = inputs.baas; };
+
+        # The grading guest, bootable on its own: `nix run .#rtunreal-vm`
+        # brings up the check runner on 127.0.0.1:43002 with no deploy and no
+        # flag anywhere near it.
+        rtunreal-vm = import ./services/rtunreal/vm.nix {
+          inherit pkgs;
+          src-rtunreal = inputs.rtunreal;
+          challengeNixpkgs = inputs.rtunreal-nixpkgs;
+        };
       };
 
       # `nixbot` builds these on every push.

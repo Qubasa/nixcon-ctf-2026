@@ -319,7 +319,37 @@
         "nixpkgs": [
           "clan-core",
           "nixpkgs"
-        ]
+        ],
+        "rtunreal": "rtunreal",
+        "rtunreal-nixpkgs": "rtunreal-nixpkgs"
+      }
+    },
+    "rtunreal": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789553512,
+        "narHash": "sha256-rJwpWTsOmd6EIvMzKBXLhZs9BJGS7PxvU42anR4pLS4=",
+        "ref": "refs/heads/main",
+        "rev": "b4df039dedbf373644952c3a9df72ead96ec1b76",
+        "revCount": 2,
+        "type": "git",
+        "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/rtunreal-challenge.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/rtunreal-challenge.git"
+      }
+    },
+    "rtunreal-nixpkgs": {
+      "locked": {
+        "lastModified": 315532800,
+        "narHash": "sha256-obwZbWHP7htCIoq2Z0g/uTMcEgN6yqcMNIcOMe6P2qI=",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1073483.c7def046b9a8/nixexprs.tar.zst"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1073483.c7def046b9a8/nixexprs.tar.zst"
       }
     },
     "sops-nix": {
