@@ -75,7 +75,7 @@
         name = "ctfd";
         input = "self";
       };
-      roles.server.machines.ctf-machine = { };
+      roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
         nginx = {
           enable = true;
@@ -95,7 +95,7 @@
         name = "gitea";
         input = "self";
       };
-      roles.server.machines.ctf-machine = { };
+      roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
         hostName = "git.immutable-byte.de";
         nginx.acmeEmail = "admin@immutable-byte.de";
@@ -111,7 +111,7 @@
         name = "nixbot";
         input = "self";
       };
-      roles.server.machines.ctf-machine = { };
+      roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
         hostName = "ci.immutable-byte.de";
         giteaUrl = "https://git.immutable-byte.de";
@@ -135,7 +135,7 @@
         name = "chall-manager";
         input = "self";
       };
-      roles.server.machines.ctf-machine = { };
+      roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
         # The homewort allocators run as children of chall-manager, so they
         # need their slot directories writable inside that service's mount
@@ -157,15 +157,17 @@
         name = "homewort";
         input = "self";
       };
-      roles.server.machines.ctf-machine = { };
+      roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
-        # Measured on this host (i7-7700, 8 threads, 64 GiB): a claimed VM
-        # sits at 750 MiB RSS idle and 2.4 GiB after an in-guest rebuild, and
-        # costs ~0.16 of a hardware thread while idle. 12 x 4 GiB is the
-        # worst-case RAM budget if every guest touches its full `memorySize`,
-        # which leaves ~14 GiB for CTFd, chall-manager and page cache; all 12
+        # Measured on the old host (i7-7700, 8 threads, 64 GiB), which is
+        # where this cap comes from: a claimed VM sits at 750 MiB RSS idle
+        # and 2.4 GiB after an in-guest rebuild, and costs ~0.16 of a
+        # hardware thread while idle. 12 x 4 GiB was the worst-case RAM
+        # budget there if every guest touched its full `memorySize`; all 12
         # rebuilding at once measured 29 GiB, 146 s per rebuild against the
-        # 46 s a lone one takes.
+        # 46 s a lone one takes. prod-ctf-machine has 64 threads and 251 GiB
+        # and is nowhere near that ceiling, so raising this is a capacity
+        # decision waiting for its own measurements, not a constraint.
         maxSlots = 12;
         publicHost = "ctf.nixcon.org";
       };
@@ -179,18 +181,18 @@
         name = "homewort-v2";
         input = "self";
       };
-      roles.server.machines.ctf-machine = { };
+      roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
         # Deliberately small. The nominal `maxSlots * memorySize` budget is
         # already fully spoken for by the 12-slot `homewort` pool above, so
         # these four slots are an overcommit against it, justified by what the
         # pools actually touch rather than what they are allowed to. Measured
-        # on this host: a v2 guest sits at 2.38 GiB RSS after a full in-guest
-        # `nixos-rebuild switch` (55 s, offline) and leaves a 660 MiB overlay,
-        # so four of them add ~10 GiB to the 29 GiB the v1 pool measured with
-        # all 12 guests rebuilding. Exhaustion is a visible failed deploy in
-        # CTFd (allocator exit 4), which is the failure mode to prefer over an
-        # OOM killer that would take CTFd down with it.
+        # on the old host: a v2 guest sits at 2.38 GiB RSS after a full
+        # in-guest `nixos-rebuild switch` (55 s, offline) and leaves a 660 MiB
+        # overlay, so four of them add ~10 GiB to the 29 GiB the v1 pool
+        # measured with all 12 guests rebuilding. Exhaustion is a visible
+        # failed deploy in CTFd (allocator exit 4), which is the failure mode
+        # to prefer over an OOM killer that would take CTFd down with it.
         maxSlots = 4;
         publicHost = "ctf.nixcon.org";
       };
@@ -207,7 +209,7 @@
         name = "baas";
         input = "self";
       };
-      roles.server.machines.ctf-machine = { };
+      roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
         nginx = {
           enable = true;
@@ -221,7 +223,7 @@
   # machines/server/configuration.nix will be automatically imported.
   # See: https://clan.lol/docs/unstable/guides/inventory/autoincludes
   machines = {
-    ctf-machine = { config, pkgs, ... }: {
+    prod-ctf-machine = { config, pkgs, ... }: {
       environment.systemPackages = [ pkgs.helix ];
 
       services.postgresql.package = pkgs.postgresql_17;
