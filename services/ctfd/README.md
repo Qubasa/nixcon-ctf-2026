@@ -99,6 +99,23 @@ authentication or authorisation whatsoever, and deploying a scenario to it is by
 design arbitrary code execution. It is never published to players, never proxied
 by nginx, and never bound to a public interface — the plugin is its only client.
 
+### Prerequisites on `dynamic_iac` challenges
+
+The plugin source is mounted from the flake input after
+`./prerequisite-gate.patch` is applied to it. Upstream's `challenge_visible`
+decorator only rejects a challenge whose `state` is `hidden` or `locked`, so a
+player could POST `/api/v1/plugins/ctfd-chall-manager/instance` with the id of
+a challenge CTFd core hides behind unsolved prerequisites and get a deployed
+instance plus its connection info — measured on `homewort-v2`, which is gated
+behind `homewort`. The patch gives the decorator the same requirements check
+core applies in `CTFd/api/v1/challenges.py`: prerequisites that are not solved
+by the current account (user or team, whichever `account_id` resolves to) turn
+the request into a 403. Challenges without requirements are unaffected.
+
+Delete the patch and the `challManagerSrc` binding in `default.nix` once
+upstream enforces requirements itself; the patch stops applying and the build
+fails at that point.
+
 ## Reverse proxy (nginx + TLS + Anubis)
 
 Setting `nginx.enable = true` puts nginx in front of CTFd, terminates TLS with a

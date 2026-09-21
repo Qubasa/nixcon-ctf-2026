@@ -165,6 +165,18 @@
             proxy = settings.nginx;
             cm = settings.challManager;
             cmNetworkUnit = "docker-network-${cm.network}.service";
+            # Upstream's `challenge_visible` decorator only looks at a
+            # challenge's `state`, so a player can POST an instance of a
+            # challenge that CTFd core hides behind unsolved prerequisites. The
+            # patch teaches the decorator the same requirements check core
+            # applies. Delete ./prerequisite-gate.patch and this binding once
+            # ctfd-chall-manager enforces requirements itself: the patch stops
+            # applying and the build fails loudly when that lands.
+            challManagerSrc = pkgs.applyPatches {
+              name = "ctfd-chall-manager-prereq-gate";
+              src = inputs.ctfd-chall-manager;
+              patches = [ ./prerequisite-gate.patch ];
+            };
           in
           lib.mkMerge [
           {
@@ -303,7 +315,7 @@
                   # `CTFd.plugins.ctfd_chall_manager.*` imports and derives both
                   # its asset endpoint and its migration path from the
                   # directory's basename, so it must be exactly this.
-                  "${inputs.ctfd-chall-manager}:/opt/CTFd/CTFd/plugins/ctfd_chall_manager:ro"
+                  "${challManagerSrc}:/opt/CTFd/CTFd/plugins/ctfd_chall_manager:ro"
                 ];
                 ports = [ "${settings.address}:${toString settings.port}:8000" ];
                 dependsOn = [

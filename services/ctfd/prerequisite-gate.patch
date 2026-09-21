@@ -1,0 +1,56 @@
+--- a/utils/decorators.py
++++ b/utils/decorators.py
+@@ -4,13 +4,37 @@
+ 
+ import functools
+ 
+-from CTFd.models import Challenges
+-from CTFd.utils.user import is_admin
++from CTFd.models import Challenges, Solves
++from CTFd.utils.user import get_current_user, is_admin
+ from flask import request
+ from flask_restx import abort
+ from sqlalchemy.sql import and_
+ 
+ 
++def prerequisites_met(challenge):
++    """
++    Whether the current source solved every prerequisite of the challenge.
++    Mirrors the gate CTFd core applies in CTFd/api/v1/challenges.py, which the
++    plugin's own endpoints do not inherit.
++    """
++    prerequisites = set((challenge.requirements or {}).get("prerequisites", []))
++    if not prerequisites:
++        return True
++
++    user = get_current_user()
++    if not user:
++        return False
++
++    known = {c.id for c in Challenges.query.with_entities(Challenges.id).all()}
++    solved = {
++        solved_id
++        for (solved_id,) in Solves.query.with_entities(Solves.challenge_id)
++        .filter_by(account_id=user.account_id)
++        .all()
++    }
++    return solved >= prerequisites & known
++
++
+ def challenge_visible(func):
+     """
+     This decorator abort the request if the challenge is not visible.
+@@ -34,10 +58,11 @@
+             if not Challenges.query.filter(Challenges.id == challenge_id).first():
+                 abort(404, "no such challenge", success=False)
+         else:
+-            if not Challenges.query.filter(
++            challenge = Challenges.query.filter(
+                 Challenges.id == challenge_id,
+                 and_(Challenges.state != "hidden", Challenges.state != "locked"),
+-            ).first():
++            ).first()
++            if not challenge or not prerequisites_met(challenge):
+                 abort(403, "challenge not visible", success=False)
+         return func(*args, **kwargs)
+ 
