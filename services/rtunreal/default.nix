@@ -176,9 +176,20 @@
               users.users.rtunreal = {
                 isSystemUser = true;
                 group = "rtunreal";
-                description = "Runs the rtunreal challenge VM and submission desk";
+                description = "Runs the rtunreal submission desk, holds the flag";
               };
               users.groups.rtunreal = { };
+
+              # QEMU runs as nobody the flag file lets in. The guest executes
+              # player-written Nix, so a hypervisor escape is the failure this
+              # service is built around: landing as `rtunreal` would hand the
+              # escapee a readable flag and make the VM pointless.
+              users.users.rtunreal-vm = {
+                isSystemUser = true;
+                group = "rtunreal-vm";
+                description = "Runs the rtunreal grading VM, never sees the flag";
+              };
+              users.groups.rtunreal-vm = { };
 
               # The one secret of this challenge, and the reason the grading
               # runs in a VM: it stays in this process, which evaluates no
@@ -224,8 +235,8 @@
                   Restart = "always";
                   RestartSec = 5;
 
-                  User = "rtunreal";
-                  Group = "rtunreal";
+                  User = "rtunreal-vm";
+                  Group = "rtunreal-vm";
                   SupplementaryGroups = [ "kvm" ];
                   StateDirectory = "rtunreal-vm";
                   StateDirectoryMode = "0700";

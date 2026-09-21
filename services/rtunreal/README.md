@@ -183,8 +183,11 @@ inventory.instances.rtunreal = {
 ```
 
 The VM host needs KVM (`/dev/kvm`); `rtunreal-vm.service` runs as the
-unprivileged `rtunreal` user in the `kvm` group. Budget one more long-lived
-6 GiB guest next to baas and the homewort pools.
+unprivileged `rtunreal-vm` user in the `kvm` group. That is a *different* user
+from the desk's `rtunreal`, which owns the `0400` flag file: the guest runs
+player-written Nix, so a QEMU escape is the failure this service is shaped
+around, and landing next to a readable flag would make the VM decorative.
+Budget one more long-lived 6 GiB guest next to baas and the homewort pools.
 
 ## Testing it without deploying
 
@@ -196,6 +199,7 @@ nix run .#rtunreal-vm &
 curl -s 127.0.0.1:43002/health
 cp services/rtunreal/solution/input-derivation.nix challenges/rtunreal-challenge/
 git -C challenges/rtunreal-challenge add -A
+git -C challenges/rtunreal-challenge add -f input-derivation.nix
 git -C challenges/rtunreal-challenge diff HEAD > /tmp/solution.patch
 curl -s --data-binary @/tmp/solution.patch 127.0.0.1:43002/verify | jq '.ok, .checks[].name'
 ```
