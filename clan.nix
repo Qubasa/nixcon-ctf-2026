@@ -44,6 +44,7 @@
         "admin-machine-1" =
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGXfyed2m6hEB5gXTclAYSdi8tDQJF5HQe+rop7Pj8ik lhebendanz@wintux";
         "3ulalia" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDTVytCp3QF/PtqJ9LH4zYyT/UJC5JyhmEsD3YBBQKko eulalia@catalina";
+        "virchau" = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCxZL3sVGCdUlD3sivB7kFTJGIdgXjzggXLshqIsxqkmMk2zLUOfB3vWcgt9k9jhhoH1kJRe06eOsZsUzNoUPtBs4crMoRYDj8PBUsKD6BgLa96/PRGk7jm5hSAqedDC7yTuGp0u5pVlyplqY7eiacKu/TyM84V9rOT+9tFT8334GOBdHEuFpDVwdc2xJMr/AGu1tL9fpgLSYSkHyFiCn1/t1BTNt9wf8wWw3vLhHxBHI119LOTf9na2xscAFEFRQxy5Q1HDf15AuAbuhaMb8siZZtQRqlElJadUpPfjfQdR7qcLandbfrhI4oVaT2bYyvLV7AXaO8pFDgPgjNzfQ7lfJvdH7jSSjsUMh9hQhnat41yw9hiHhTrn7wBojH6lg32R7I+GMXoMmsEQof8XTdzf67xVEYKgqQlF1zVCVZ2Y3yNk1AFwKbR13hrDFCDI/7cy7BkcD179qCb+C73zHzAF0DYxA7k4Sr/WTS0ihjbfOQvHblwrdYvugHXQyK7fEgeaL+CjeqpX6OFc4cnAYwe6Rlzk+mZj8lTo0cXGDi35cd2y2UYmdU79+GyzNPvR62GnACwXAWiSyKTIwIpIxvoEpQEZ3ZXYHq3UqTg4fuin9LeX2pNIekVYchoIdTbZbkPN1hMtPZl+aw7k+baZSmTXnoN8WVLtRsj75DcczhCdQ== virchau13@hexular.net";
       };
     };
 
