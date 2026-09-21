@@ -194,10 +194,19 @@ def submit(cfg: Config, patch: bytes) -> dict[str, Any]:
 
 
 def extract_patch(content_type: str, body: bytes) -> bytes:
-    """A browser form posts urlencoded fields; curl posts the diff itself."""
+    """Take the diff from a browser form field, or as the whole body.
+
+    Content-Type cannot decide this: `curl --data-binary @my.patch`, the
+    command every player is handed, labels a raw diff as form data. A diff
+    posted that way has no `patch` field, so the field is what tells the two
+    apart.
+    """
     if content_type.startswith("application/x-www-form-urlencoded"):
-        fields = urllib.parse.parse_qs(body.decode(errors="replace"))
-        return fields.get("patch", [""])[0].encode()
+        fields = urllib.parse.parse_qs(
+            body.decode(errors="replace"), keep_blank_values=True
+        )
+        if "patch" in fields:
+            return fields["patch"][0].encode()
     return body
 
 
