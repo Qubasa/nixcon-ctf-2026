@@ -2,6 +2,9 @@
   "machines": {
     "ctf-machine": {
       "installedAt": 1784545439
+    },
+    "prod-ctf-machine": {
+      "installedAt": 1789985970
     }
   }
 }
