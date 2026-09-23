@@ -10,7 +10,7 @@ The service is the standalone successor of buildbot-nix
 
 ## What the module sets up
 
-- `services.nixbot` with the Gitea integration, an nginx vhost and an HTTP-01
+- `services.nixbot` with the Gitea integration, an nginx vhost, and an HTTP-01
   certificate for `hostName`.
 - A database on the clan PostgreSQL (`database.createLocally = false`, socket
   peer authentication) so it rides the clan pg-dump backup and restore.
@@ -32,15 +32,16 @@ None of this can live in the flake, and all of it happens in Gitea.
    ```
    gitea admin user create --username nixbot --email nixbot@<domain> --random-password
    ```
-   Add it as an **admin collaborator** on every repository it should build.
-   Gitea only lets repo admins manage webhooks; without that the repo is still
-   discovered but its webhook has to be added by hand.
-3. **Access token.** As `nixbot`, Settings → Applications → generate a token
+   Add it as an admin collaborator on every repository it should build.
+   Gitea only lets repo admins manage webhooks. Without admin rights the repo is
+   still discovered, but its webhook has to be added by hand.
+3. **Access token.** As `nixbot`, generate a token under Settings → Applications
    with `write:repository` and `read:user`, or mint it with
    `gitea admin user generate-access-token`.
-4. **OAuth2 app.** Site Administration → Applications → create an application
-   named `nixbot` with redirect URI `https://<hostName>/auth/gitea/callback`.
-   Put the generated **client id** into `clan.nix` as `oauthId` (non-secret).
+4. **OAuth2 app.** Under Site Administration → Applications, create an
+   application named `nixbot` with redirect URI
+   `https://<hostName>/auth/gitea/callback`. Put the generated client id into
+   `clan.nix` as `oauthId` (non-secret).
 5. **Secrets.** Both the access token and the OAuth client secret are prompts of
    one generator:
    ```
@@ -48,8 +49,8 @@ None of this can live in the flake, and all of it happens in Gitea.
    ```
    Use `clan vars set` only to rotate one of them later.
 6. **Opt repositories in.** Tag them with the `topic` (default
-   `build-with-nixbot`) for the one-shot import — this only happens against an
-   empty database — or enable them in the web UI afterwards. Webhooks
+   `build-with-nixbot`) for the one-shot import, or enable them in the web UI
+   afterwards. The import only runs against an empty database. Webhooks
    (`push`, `pull_request`, `pull_request_sync`) are created on each discovery
    cycle.
 
@@ -65,7 +66,7 @@ and enabling or disabling projects.
 - The Gitea vhost is fronted by Anubis, but its default policy only challenges
   browser user agents, so nixbot's API calls and git clones pass through.
 - `evalWorkerCount` caps the `nix-eval-jobs` workers. The upstream default is
-  one per core and each reserves 2 GiB, which can exhaust a small machine — set
+  one per core and each reserves 2 GiB, which can exhaust a small machine. Set
   it to 2 on an 8 GB box.
 - `cacheFailedBuilds` is on: derivations known to fail are not rebuilt until an
   explicit rerun.

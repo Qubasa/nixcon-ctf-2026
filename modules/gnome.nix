@@ -1,8 +1,8 @@
 { ... }:
 {
-  # Can be imported into machines to enable GNOME and GDM.
+  # Import this module into a machine to enable GNOME and GDM.
   #
-  # Copy this into a machine's configuration:
+  # Copy the snippet below into a machine's configuration:
   # `machines/<name>/configuration.nix`
   # ```nix
   # imports = [

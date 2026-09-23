@@ -11,7 +11,7 @@ Runs [Gitea](https://about.gitea.com/) as a native NixOS service:
   proof-of-work anti-bot challenge (nginx subrequest authentication), including
   the upstream bot policy for Gitea RSS feeds
 
-Gitea itself binds to loopback only; all external traffic goes through nginx.
+Gitea itself binds to loopback only, so all external traffic goes through nginx.
 
 ## Usage
 
@@ -38,9 +38,10 @@ reachable from the internet for the ACME HTTP-01 challenge to succeed.
 
 ## First login
 
-There is no admin account out of the box, and registration is disabled, so the
-first one has to be created on the machine (Gitea must be running — it writes
-`app.ini` and migrates the database on first start):
+Gitea has no admin account out of the box and registration is disabled, so the
+first admin has to be created on the machine with the command below. Gitea must
+be running first, because it writes `app.ini` and migrates the database on its
+first start.
 
 ```
 sudo -u gitea GITEA_WORK_DIR=/var/lib/gitea GITEA_CUSTOM=/var/lib/gitea/custom \
@@ -48,7 +49,7 @@ sudo -u gitea GITEA_WORK_DIR=/var/lib/gitea GITEA_CUSTOM=/var/lib/gitea/custom \
 ```
 
 The generated password is printed once. Afterwards log in at
-`https://<hostName>/user/login`; further users are added under
+`https://<hostName>/user/login` and add further users under
 *Site Administration → Identity & Access → User Accounts*.
 
 ## Notes

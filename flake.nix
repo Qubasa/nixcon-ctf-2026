@@ -2,42 +2,42 @@
   inputs.clan-core.url = "https://git.clan.lol/clan/clan-core/archive/main.tar.gz";
   inputs.nixpkgs.follows = "clan-core/nixpkgs";
 
-  # nixbot — standalone Nix CI (buildbot-nix's successor) for the nixbot
-  # service. Provides nixosModules.nixbot; integrates with the clan's Gitea
-  # via webhooks and commit statuses.
+  # nixbot is the standalone Nix CI (buildbot-nix's successor) behind the
+  # nixbot service. It provides nixosModules.nixbot and integrates with the
+  # clan's Gitea through webhooks and commit statuses.
   inputs.nixbot.url = "github:Mic92/nixbot";
   inputs.nixbot.inputs.nixpkgs.follows = "nixpkgs";
 
-  # The homewort CTF challenge (nixosConfigurations.mus). Hosted by the
-  # `homewort` service; pins its own nixpkgs/home-manager on purpose, so it
-  # deliberately does not follow this flake's nixpkgs.
+  # The `homewort` service hosts this CTF challenge (nixosConfigurations.mus).
+  # It pins its own nixpkgs/home-manager on purpose, so it does not follow
+  # this flake's nixpkgs.
   inputs.homewort.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort.git";
 
-  # The homewort-v2 CTF challenge (nixosConfigurations.mus / mus-vm). Same
-  # deal, and it additionally pins a patched home-manager fork the challenge
-  # cannot work without.
+  # The homewort-v2 CTF challenge (nixosConfigurations.mus / mus-vm) pins its
+  # inputs the same way. It also pins a patched home-manager fork the
+  # challenge cannot work without.
   inputs.homewort-v2.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort-v2.git";
 
-  # The `baas` challenge. A plain source tree, not a flake: the service builds
-  # the Express app from it and the repo has no flake.nix of its own.
+  # The `baas` challenge is a plain source tree, not a flake: the service
+  # builds the Express app from it and the repo has no flake.nix of its own.
   inputs.baas.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/baas.git";
   inputs.baas.flake = false;
 
-  # The `rtunreal` challenge ("Pimp my PHP"). A source tree, not a flake input
-  # that gets evaluated: the service grades submissions against the tree as
-  # published and hands players the same bytes as a tarball.
+  # The `rtunreal` challenge ("Pimp my PHP") is a source tree, not a flake
+  # input that gets evaluated: the service grades submissions against the
+  # tree as published and hands players the same bytes as a tarball.
   inputs.rtunreal.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/rtunreal-challenge.git";
   inputs.rtunreal.flake = false;
 
-  # The nixpkgs that challenge's own flake.lock pins, by the URL the lock
-  # resolved to. The grading guest has no egress, so it ships this tree and
-  # overrides the challenge's input with it. `services/rtunreal/guest.nix`
-  # throws if the two ever drift apart.
+  # This is the nixpkgs that the rtunreal challenge's own flake.lock pins,
+  # fetched by the URL the lock resolved to. The grading guest has no egress,
+  # so it ships this tree and overrides the challenge's input with it.
+  # `services/rtunreal/guest.nix` throws if the two ever drift apart.
   inputs.rtunreal-nixpkgs.url = "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1073483.c7def046b9a8/nixexprs.tar.zst";
 
-  # The CTFd plugin that proxies a challenge to chall-manager. Consumed as a
-  # plain source tree: CTFd imports it from a bind mount, there is nothing to
-  # build.
+  # The CTFd plugin that proxies a challenge to chall-manager is consumed as a
+  # plain source tree: CTFd imports it from a bind mount, so nothing needs
+  # building.
   inputs.ctfd-chall-manager.url = "github:ctfer-io/ctfd-chall-manager/v0.10.1";
   inputs.ctfd-chall-manager.flake = false;
 

@@ -16,7 +16,7 @@
           hostName = lib.mkOption {
             type = lib.types.str;
             example = "ci.immutable-byte.de";
-            description = "Public host name nixbot's web UI is served under. Gets its own ACME certificate.";
+            description = "Public host name nixbot's web UI is served under. It gets its own ACME certificate.";
           };
 
           giteaUrl = lib.mkOption {
@@ -48,7 +48,7 @@
             example = [ "gitea:qubasa" ];
             description = ''
               Provider-qualified admin logins (`gitea:<login>`). Admins can reload
-              the project list, enable/disable projects and restart or cancel any
+              the project list, enable/disable projects, and restart or cancel any
               build.
             '';
           };
@@ -58,7 +58,7 @@
             default = "build-with-nixbot";
             description = ''
               Gitea repository topic. On first start against an empty database,
-              repos carrying this topic are imported and enabled; afterwards
+              repos carrying this topic are imported and enabled. Afterwards,
               manage projects in the web UI.
             '';
           };
@@ -66,7 +66,7 @@
           buildSystems = lib.mkOption {
             type = lib.types.listOf lib.types.str;
             default = [ "x86_64-linux" ];
-            description = "Systems built locally; anything else needs nix remote builders.";
+            description = "Systems built locally. Anything else needs nix remote builders.";
           };
 
           evalWorkerCount = lib.mkOption {
@@ -74,8 +74,9 @@
             default = null;
             example = 2;
             description = ''
-              nix-eval-jobs workers. `null` keeps the upstream default (one per
-              core), which reserves `cores * 2 GiB` and can OOM a small box.
+              Number of nix-eval-jobs workers. `null` keeps the upstream default
+              (one per core), which reserves `cores * 2 GiB` and can OOM a small
+              box.
             '';
           };
         };
@@ -115,7 +116,7 @@
             clan.core.postgresql.databases.nixbot.create.options.OWNER = "nixbot";
             clan.core.postgresql.databases.nixbot.restore.stopOnRestore = [ "nixbot" ];
 
-            # Private clones and build logs; the nix store itself is
+            # Private clones and build logs. The nix store itself is
             # rebuildable and deliberately not backed up.
             clan.core.state.nixbot.folders = [ "/var/lib/nixbot" ];
 
@@ -154,7 +155,7 @@
             };
 
             # nixbot only orders after postgresql.target when it provisions the
-            # database itself; with the clan Postgres we wire the ordering here.
+            # database itself. With the clan Postgres we wire the ordering here.
             systemd.services.nixbot = {
               after = [ "postgresql.target" ];
               requires = [ "postgresql.target" ];

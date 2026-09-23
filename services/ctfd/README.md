@@ -3,18 +3,18 @@
 Runs [CTFd](https://github.com/CTFd/CTFd), a Capture The Flag platform, as a set
 of OCI containers on a single machine:
 
-- `ctfd` — the CTFd web application (published on `<address>:<port>`)
-- `ctfd-db` — a MariaDB database
-- `ctfd-cache` — a Redis cache
+- `ctfd`: the CTFd web application (published on `<address>:<port>`)
+- `ctfd-db`: a MariaDB database
+- `ctfd-cache`: a Redis cache
 
-The database, cache and CTFd containers talk to each other over an internal
+The database, cache, and CTFd containers talk to each other over an internal
 docker network. CTFd itself is additionally attached to the bridge network so it
 retains outbound access, and to the `challmgr` network so it can reach
 chall-manager on the host (see below).
 
 ## Secrets
 
-The `SECRET_KEY`, MariaDB root password and CTFd database password are generated
+The `SECRET_KEY`, MariaDB root password, and CTFd database password are generated
 and stored through clan vars (generator `ctfd`). They are never written to the
 Nix store. To rotate them, remove the generator's vars and redeploy.
 
@@ -48,9 +48,9 @@ container at:
 That directory name is not a preference. The plugin imports itself absolutely
 (`from CTFd.plugins.ctfd_chall_manager.utils... import ...`) and derives both its
 asset endpoint and its Alembic migration directory from the basename of its own
-directory, so anything else — a hyphen, a version suffix — breaks it at import
-time. `PYTHONDONTWRITEBYTECODE=1` is set on the container because the mount
-points into the read-only nix store.
+directory. Any other name, even one with a hyphen or a version suffix, breaks it
+at import time. `PYTHONDONTWRITEBYTECODE=1` is set on the container because the
+mount points into the read-only nix store.
 
 All three images are pinned by digest with `pull = "missing"`: CTFd to
 `ctfd/ctfd:3.8.7` (the build the plugin's own CI runs against), plus
@@ -65,8 +65,8 @@ The plugin reads its configuration from the environment exactly once, on its
 first load, and writes the values into CTFd's own config table (guarded by a
 `chall-manager:setup` key). From then on the environment is ignored and the
 values are owned by the admin UI under *Plugins → chall-manager*. Changing a Nix
-option after the first boot therefore has no effect — change it in the UI, or
-drop the CTFd database.
+option after the first boot therefore has no effect. Change the value in the UI
+or drop the CTFd database instead.
 
 | Option | Environment variable | Default |
 | --- | --- | --- |
@@ -78,8 +78,8 @@ drop the CTFd database.
 `hideInstancesPanel` is the exception: it is re-read from the environment on
 every CTFd start and has no admin-UI equivalent.
 
-Per-challenge knobs — the scenario reference, the instance `timeout`, and
-`destroy_on_flag` — are fields on the `dynamic_iac` challenge form in CTFd, not
+The per-challenge knobs (the scenario reference, the instance `timeout`, and
+`destroy_on_flag`) are fields on the `dynamic_iac` challenge form in CTFd, not
 Nix options. chall-manager has no global equivalents.
 
 ### Reaching chall-manager
@@ -94,27 +94,29 @@ one `--network` when a container is created, so the second and third
 attachments happen in the container unit's `postStart`.
 
 `10.89.0.1` is the host as seen from that network, and chall-manager's firewall
-rule only opens port 8080 on `challmgr0`. This matters: chall-manager has no
-authentication or authorisation whatsoever, and deploying a scenario to it is by
-design arbitrary code execution. It is never published to players, never proxied
-by nginx, and never bound to a public interface — the plugin is its only client.
+rule only opens port 8080 on `challmgr0`. The restriction matters because
+chall-manager has no authentication or authorisation, and deploying a scenario
+to it is by design arbitrary code execution. It is never published to players,
+never proxied by nginx, and never bound to a public interface. The plugin is its
+only client.
 
 ### Prerequisites on `dynamic_iac` challenges
 
 The plugin source is mounted from the flake input after
 `./prerequisite-gate.patch` is applied to it. Upstream's `challenge_visible`
-decorator only rejects a challenge whose `state` is `hidden` or `locked`, so a
-player could POST `/api/v1/plugins/ctfd-chall-manager/instance` with the id of
-a challenge CTFd core hides behind unsolved prerequisites and get a deployed
-instance plus its connection info — measured on `homewort-v2`, which is gated
-behind `homewort`. The patch gives the decorator the same requirements check
-core applies in `CTFd/api/v1/challenges.py`: prerequisites that are not solved
-by the current account (user or team, whichever `account_id` resolves to) turn
-the request into a 403. Challenges without requirements are unaffected.
+decorator only rejects a challenge whose `state` is `hidden` or `locked`. A
+player could therefore POST `/api/v1/plugins/ctfd-chall-manager/instance` with
+the id of a challenge CTFd core hides behind unsolved prerequisites and get a
+deployed instance plus its connection info. We confirmed the bypass on
+`homewort-v2`, which is gated behind `homewort`. The patch gives the decorator
+the same requirements check core applies in `CTFd/api/v1/challenges.py`:
+prerequisites that are not solved by the current account (user or team,
+whichever `account_id` resolves to) turn the request into a 403. Challenges
+without requirements are unaffected.
 
 Delete the patch and the `challManagerSrc` binding in `default.nix` once
-upstream enforces requirements itself; the patch stops applying and the build
-fails at that point.
+upstream enforces requirements itself. At that point the patch stops applying
+and the build fails.
 
 ## Reverse proxy (nginx + TLS + Anubis)
 
@@ -147,5 +149,5 @@ reachable from the internet for the ACME HTTP-01 challenge to succeed.
 - Container names are fixed (`ctfd`, `ctfd-db`, `ctfd-cache`), so only a single
   instance of this service is supported per machine.
 - All three container images are digest-pinned, so a restart never contacts
-  Docker Hub. The flip side is that security updates only arrive when someone
-  bumps a digest.
+  Docker Hub. In exchange, security updates only arrive when someone bumps a
+  digest.

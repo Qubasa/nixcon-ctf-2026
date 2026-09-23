@@ -18,7 +18,7 @@
             example = "git.immutable-byte.de";
             description = ''
               Public host name Gitea is served under. It is used for the root
-              URL, the ACME certificate and the Anubis redirect domain.
+              URL, the ACME certificate, and the Anubis redirect domain.
             '';
           };
 
@@ -180,8 +180,8 @@
 
               services.anubis.instances.gitea = lib.mkIf proxy.anubis.enable {
                 settings = {
-                  # Subrequest-auth mode: nginx proxies to Gitea, Anubis only
-                  # answers the auth_request check, so no upstream target here.
+                  # Subrequest-auth mode: nginx proxies to Gitea and Anubis only
+                  # answers the auth_request check, so it needs no upstream target.
                   TARGET = " ";
                   BIND = "127.0.0.1:${toString proxy.anubis.port}";
                   BIND_NETWORK = "tcp";

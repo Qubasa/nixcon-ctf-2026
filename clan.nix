@@ -64,7 +64,7 @@
     };
 
     # Docs: https://clan.lol/docs/unstable/services/official/p2p-ssh-iroh
-    # Status experimental
+    # Status: experimental
     # Firewall-traversing SSH access via encrypted QUIC streams
     p2p-ssh-iroh = {
       roles.server.tags = [ "nixos" ];
@@ -90,8 +90,8 @@
       };
     };
 
-    # Local module (see ./services/gitea). Gitea on PostgreSQL behind nginx
-    # with TLS and an Anubis proof-of-work challenge.
+    # Local module (see ./services/gitea). Runs Gitea on PostgreSQL behind
+    # nginx with TLS and an Anubis proof-of-work challenge.
     gitea = {
       module = {
         name = "gitea";
@@ -127,8 +127,8 @@
     # Local module (see ./services/chall-manager). The engine behind the
     # on-demand challenges: CTFd's chall-manager plugin asks it for an
     # instance, it runs the challenge's Pulumi scenario, and its janitor
-    # destroys instances once they expire. Unauthenticated by design, so it is
-    # only reachable from the CTFd container over the `challmgr` network.
+    # destroys instances once they expire. It is unauthenticated by design, so
+    # it is only reachable from the CTFd container over the `challmgr` network.
     #
     # The 2h instance lifetime is not set here: it is a per-challenge field of
     # the CTFd `dynamic_iac` form, which chall-manager receives over its API.
@@ -150,10 +150,10 @@
       };
     };
 
-    # Local module (see ./services/homewort). Pool of on-demand QEMU VMs
-    # hosting the `homewort` privilege-escalation challenge. Slots are claimed
-    # by `chall-manager` through the `homewort-instance` allocator, one
-    # forwarded SSH port and one freshly minted flag per instance.
+    # Local module (see ./services/homewort). Runs a pool of on-demand QEMU VMs
+    # that host the `homewort` privilege-escalation challenge. `chall-manager`
+    # claims slots through the `homewort-instance` allocator, and each instance
+    # gets one forwarded SSH port and one freshly minted flag.
     homewort = {
       module = {
         name = "homewort";
@@ -161,23 +161,23 @@
       };
       roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
-        # Measured on the old host (i7-7700, 8 threads, 64 GiB), which is
-        # where this cap comes from: a claimed VM sits at 750 MiB RSS idle
-        # and 2.4 GiB after an in-guest rebuild, and costs ~0.16 of a
-        # hardware thread while idle. 12 x 4 GiB was the worst-case RAM
-        # budget there if every guest touched its full `memorySize`; all 12
-        # rebuilding at once measured 29 GiB, 146 s per rebuild against the
-        # 46 s a lone one takes. prod-ctf-machine has 64 threads and 251 GiB
-        # and is nowhere near that ceiling, so raising this is a capacity
-        # decision waiting for its own measurements, not a constraint.
+        # This cap comes from measurements on the old host (i7-7700, 8 threads,
+        # 64 GiB). A claimed VM sits at 750 MiB RSS idle and 2.4 GiB after an
+        # in-guest rebuild, and costs ~0.16 of a hardware thread while idle.
+        # 12 x 4 GiB was the worst-case RAM budget there if every guest touched
+        # its full `memorySize`. With all 12 rebuilding at once the host
+        # measured 29 GiB and 146 s per rebuild, against the 46 s a lone
+        # rebuild takes. prod-ctf-machine has 64 threads and 251 GiB and is
+        # nowhere near that ceiling, so raising this is a capacity decision
+        # waiting for its own measurements, not a constraint.
         maxSlots = 12;
         publicHost = "ctf.nixcon.org";
       };
     };
 
-    # Local module (see ./services/homewort-v2). The same pool machinery for
-    # the harder second variant, on its own ports, state directory and
-    # allocator so the two pools cannot collide.
+    # Local module (see ./services/homewort-v2). The same pool machinery runs
+    # the harder second variant on its own ports, state directory, and
+    # allocator, so the two pools cannot collide.
     homewort-v2 = {
       module = {
         name = "homewort-v2";
@@ -185,13 +185,13 @@
       };
       roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
-        # Deliberately small. The nominal `maxSlots * memorySize` budget is
-        # already fully spoken for by the 12-slot `homewort` pool above, so
-        # these four slots are an overcommit against it, justified by what the
-        # pools actually touch rather than what they are allowed to. Measured
-        # on the old host: a v2 guest sits at 2.38 GiB RSS after a full
+        # The pool is deliberately small. The nominal `maxSlots * memorySize`
+        # budget is already fully spoken for by the 12-slot `homewort` pool
+        # above, so these four slots are an overcommit against it, justified by
+        # what the pools actually touch rather than what they are allowed to.
+        # On the old host, a v2 guest sits at 2.38 GiB RSS after a full
         # in-guest `nixos-rebuild switch` (55 s, offline) and leaves a 660 MiB
-        # overlay, so four of them add ~10 GiB to the 29 GiB the v1 pool
+        # overlay. Four of them add ~10 GiB to the 29 GiB the v1 pool
         # measured with all 12 guests rebuilding. Exhaustion is a visible
         # failed deploy in CTFd (allocator exit 4), which is the failure mode
         # to prefer over an OOM killer that would take CTFd down with it.
@@ -200,11 +200,11 @@
       };
     };
 
-    # Local module (see ./services/baas). One shared VM running the `baas`
-    # challenge, served on a plain-HTTP port of its own. It lives in a guest
-    # rather than on the host because the challenge hands players `nix-build`
-    # and serves any `/nix/store` path over HTTP, and the host's store holds
-    # chall-manager's scenarios while its loopback holds chall-manager's
+    # Local module (see ./services/baas). Runs the `baas` challenge in one
+    # shared VM, which serves it on a plain-HTTP port of its own. It lives in a
+    # guest rather than on the host because the challenge hands players
+    # `nix-build` and serves any `/nix/store` path over HTTP. On the host, the
+    # store holds chall-manager's scenarios and loopback holds chall-manager's
     # unauthenticated API.
     baas = {
       module = {
@@ -220,13 +220,13 @@
       };
     };
 
-    # Local module (see ./services/rtunreal). The submission desk for the
-    # `rtunreal` build challenge: players send the patch that makes the
+    # Local module (see ./services/rtunreal). Runs the submission desk for the
+    # `rtunreal` build challenge. Players send the patch that makes the
     # challenge flake's checks pass, a throwaway guest rebuilds those checks
     # offline, and the flag is printed only when all of them come back green.
-    # Same reason as baas for the VM, plus one of its own: grading means
-    # evaluating player-written Nix, and Nix evaluates unsandboxed - on this
-    # host that would put `builtins.readFile` next to the flag.
+    # It uses a VM for the same reason as baas, plus one of its own: grading
+    # means evaluating player-written Nix, and Nix evaluates unsandboxed. On
+    # this host that would put `builtins.readFile` next to the flag.
     rtunreal = {
       module = {
         name = "rtunreal";

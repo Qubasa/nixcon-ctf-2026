@@ -2,7 +2,7 @@
 {
   _class = "clan.service";
   manifest.name = "ctfd";
-  manifest.description = "Dockerized CTFd Capture The Flag platform with MariaDB and Redis, secrets managed through clan vars.";
+  manifest.description = "Dockerized CTFd Capture The Flag platform with MariaDB and Redis, with secrets managed through clan vars.";
   manifest.categories = [ "Web" ];
   manifest.readme = builtins.readFile ./README.md;
 
@@ -16,7 +16,7 @@
           folder = lib.mkOption {
             type = lib.types.str;
             default = "/var/lib/ctfd";
-            description = "Directory holding uploads, logs, the MariaDB data and the Redis data.";
+            description = "Directory holding uploads, logs, the MariaDB data, and the Redis data.";
           };
 
           address = lib.mkOption {
@@ -24,8 +24,8 @@
             default = "127.0.0.1";
             example = "0.0.0.0";
             description = ''
-              Host address the CTFd container publishes to. Defaults to loopback,
-              expecting a reverse proxy in front of it.
+              Host address the CTFd container publishes to. Defaults to loopback
+              because a reverse proxy is expected in front of it.
             '';
           };
 
@@ -61,7 +61,7 @@
               description = ''
                 Seconds the plugin waits for a chall-manager API call before
                 giving up. Instance creation runs a full Pulumi deployment, so
-                this needs to comfortably exceed a cold boot.
+                the timeout needs to comfortably exceed a cold boot.
               '';
             };
 
@@ -80,7 +80,7 @@
               default = false;
               description = ''
                 Hide the "Instances" entry from the player menu bar. Unlike the
-                other plugin settings this one is re-read from the environment on
+                other plugin settings, this one is re-read from the environment on
                 every CTFd start and has no admin-UI equivalent.
               '';
             };
@@ -90,8 +90,8 @@
               default = "challmgr";
               description = ''
                 Docker network the CTFd container is additionally attached to in
-                order to reach chall-manager on the host. Created by the
-                `chall-manager` service as `docker-network-<name>.service`.
+                order to reach chall-manager on the host. The `chall-manager`
+                service creates it as `docker-network-<name>.service`.
               '';
             };
           };
@@ -116,9 +116,9 @@
               description = ''
                 Further host names that resolve to this machine and answer with
                 a permanent redirect to `hostName`. Each gets its own
-                certificate, so every name must already point here. Keeps old
-                links working while the scoreboard has a single origin for
-                cookies, CSRF checks and the Anubis challenge.
+                certificate, so every name must already point here. The redirect
+                keeps old links working while the scoreboard has a single origin
+                for cookies, CSRF checks, and the Anubis challenge.
               '';
             };
 
@@ -298,20 +298,20 @@
                   # The plugin tree lives in the read-only nix store.
                   PYTHONDONTWRITEBYTECODE = "1";
                   # These three seed CTFd's config table on the very first plugin
-                  # load only (guarded by the `chall-manager:setup` config key);
-                  # afterwards they are ignored and the values are owned by the
+                  # load only (guarded by the `chall-manager:setup` config key).
+                  # Afterwards they are ignored and the values are owned by the
                   # CTFd admin UI under Plugins > chall-manager.
                   PLUGIN_SETTINGS_CM_API_URL = cm.apiUrl;
                   PLUGIN_SETTINGS_CM_API_TIMEOUT = toString cm.apiTimeout;
                   PLUGIN_SETTINGS_CM_MANA_TOTAL = toString cm.manaTotal;
-                  # Re-read on every start, unlike the three above.
+                  # This one is re-read on every start, unlike the three above.
                   PLUGIN_SETTINGS_CM_UI_HIDE_INSTANCES_PANEL = lib.boolToString cm.hideInstancesPanel;
                 };
                 environmentFiles = [ secrets."ctfd.env".path ];
                 volumes = [
                   "${settings.folder}/uploads:/var/uploads"
                   "${settings.folder}/logs:/var/log/CTFd"
-                  # Directory name is load-bearing: the plugin uses absolute
+                  # The directory name is load-bearing: the plugin uses absolute
                   # `CTFd.plugins.ctfd_chall_manager.*` imports and derives both
                   # its asset endpoint and its migration path from the
                   # directory's basename, so it must be exactly this.
@@ -393,8 +393,8 @@
 
             services.anubis.instances.ctfd = lib.mkIf proxy.anubis.enable {
               settings = {
-                # Subrequest-auth mode: nginx proxies to CTFd, Anubis only
-                # answers the auth_request check, so no upstream target here.
+                # Subrequest-auth mode: nginx proxies to CTFd and Anubis only
+                # answers the auth_request check, so it needs no upstream target.
                 TARGET = " ";
                 BIND = "127.0.0.1:${toString proxy.anubis.port}";
                 BIND_NETWORK = "tcp";
