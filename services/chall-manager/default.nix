@@ -7,7 +7,7 @@
   manifest.readme = builtins.readFile ./README.md;
 
   roles.server = {
-    description = "Runs the chall-manager API, its janitor and the local OCI registry that holds the deployment scenarios, all reachable only from the `challmgr` docker network.";
+    description = "Runs the chall-manager API, its janitor, and the local OCI registry that holds the deployment scenarios, all reachable only from the `challmgr` docker network.";
 
     interface =
       { lib, ... }:
@@ -23,8 +23,8 @@
               the janitor (gRPC, over loopback) share it.
 
               chall-manager has no listen-address flag and always binds
-              `0.0.0.0`. It also has no authentication whatsoever, so this port
-              is only ever opened on the `challmgr0` bridge.
+              `0.0.0.0`. It also has no authentication at all, so this port is
+              only ever opened on the `challmgr0` bridge.
             '';
           };
 
@@ -33,7 +33,7 @@
             default = 5000;
             description = ''
               Port of the local OCI registry on `127.0.0.1`, plain HTTP. It
-              holds the deployment scenarios; challenge services push theirs
+              holds the deployment scenarios. Challenge services push theirs
               into it at boot and chall-manager pulls them from there.
             '';
           };
@@ -43,7 +43,7 @@
             default = "5min";
             description = ''
               systemd time span between janitor runs. The janitor is what makes
-              the whole thing unattended: every run asks chall-manager for the
+              the deployment unattended: every run asks chall-manager for the
               instances whose `until` has passed and deletes them, which is
               what releases the underlying challenge slot.
 
@@ -56,10 +56,10 @@
             type = lib.types.path;
             default = "/var/lib/chall-manager";
             description = ''
-              Root of chall-manager's persistent state. Holds the challenge and
-              instance records, the unpacked scenarios, and the Pulumi stack
-              states; see `services/chall-manager/README.md` for the layout.
-              Losing it orphans every running instance.
+              Root of chall-manager's persistent state. It holds the challenge
+              and instance records, the unpacked scenarios, and the Pulumi
+              stack states (see `services/chall-manager/README.md` for the
+              layout). Losing it orphans every running instance.
             '';
           };
 
@@ -72,10 +72,11 @@
 
               A scenario runs as a child of this service and therefore inside
               its mount namespace, where `ProtectSystem = "strict"` leaves the
-              whole file system read-only. That applies to a `sudo` child too -
-              namespaces are inherited, being root inside one changes nothing -
-              so a scenario whose allocator keeps state outside `stateDir`
-              fails with EROFS until its directory is listed here.
+              whole file system read-only. The restriction applies to a `sudo`
+              child too: namespaces are inherited, and being root inside one
+              changes nothing. A scenario whose allocator keeps state outside
+              `stateDir` therefore fails with EROFS until its directory is
+              listed here.
 
               Prefix an entry with `-` to make it optional if it may not exist
               yet when this service starts.
@@ -138,8 +139,8 @@
             # binary: pulumi-language-go 3.192 runs a "discover package
             # requirements" pass over the program directory on every preview and
             # up, and without a `go` on PATH it aborts the whole deployment with
-            # `couldn't find go binary`. Verified against chall-manager 0.6.6:
-            # CreateChallenge fails validation without it and succeeds with it.
+            # `couldn't find go binary`. We verified this against chall-manager
+            # 0.6.6: CreateChallenge fails validation without `go` and succeeds with it.
             #
             # The two profile directories are plain strings rather than
             # packages: the scenario reaches the challenge host through
@@ -279,14 +280,14 @@
               };
 
               serviceConfig = {
-                # `--dir` is the challenge/instance record store, `--cache` is
-                # where scenarios are unpacked and where Pulumi runs them from;
-                # both must be writable. Left at its default, the cache would
-                # land in $HOME/.cache.
+                # `--dir` is the challenge/instance record store, and `--cache`
+                # is where scenarios are unpacked and where Pulumi runs them
+                # from. Both must be writable. Left at its default, the cache
+                # would land in $HOME/.cache.
                 #
                 # `--oci.insecure` is global, not per-registry: upstream has no
-                # per-host setting. Acceptable because the only registry
-                # configured is 127.0.0.1, and it is plain HTTP.
+                # per-host setting. The switch is acceptable because the only
+                # registry configured is 127.0.0.1, and it is plain HTTP.
                 #
                 # No `--swagger`: it serves files relative to the working
                 # directory, which do not exist in the store path.
@@ -326,8 +327,9 @@
               };
             };
 
-            # This is the unattended part: instances carry an expiry, and
-            # nothing removes them until the janitor asks for the expired ones.
+            # The janitor makes the deployment unattended: instances carry an
+            # expiry, and nothing removes them until the janitor asks for the
+            # expired ones.
             systemd.services.chall-manager-janitor = {
               description = "Delete expired chall-manager instances";
               after = [ "chall-manager.service" ];
@@ -370,7 +372,7 @@
             };
 
             # chall-manager runs arbitrary Pulumi programs as a service with
-            # sudo rights and authenticates nobody; upstream calls it
+            # sudo rights and authenticates nobody, and upstream calls it
             # RCE-as-a-Service. Reaching this port is owning the host, so it is
             # bound to the bridge CTFd sits on and never to a public interface.
             networking.firewall.interfaces.${bridgeName}.allowedTCPPorts = [ settings.port ];

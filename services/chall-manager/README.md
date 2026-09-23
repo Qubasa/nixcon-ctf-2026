@@ -7,10 +7,10 @@ to build one, and its janitor tears the instance down once it expires.
 
 Four units and a timer:
 
-- `docker-network-challmgr.service` — creates the `challmgr` docker network
-- `chall-manager-registry.service` — the local OCI registry holding scenarios
-- `chall-manager.service` — the API
-- `chall-manager-janitor.service` + `.timer` — reclaims expired instances
+- `docker-network-challmgr.service`: creates the `challmgr` docker network
+- `chall-manager-registry.service`: the local OCI registry holding scenarios
+- `chall-manager.service`: the API
+- `chall-manager-janitor.service` + `.timer`: reclaims expired instances
 
 ## Architecture
 
@@ -47,14 +47,14 @@ internet, and nothing in the chain needs an operator during the event.
 ## Why native, and not Kubernetes or the docker socket
 
 Upstream deploys chall-manager into Kubernetes and its scenarios normally
-create Kubernetes objects. That is one machine's worth of work for zero benefit
-here: the challenge this runs is a full QEMU VM with its own bootloader, so
-there is nothing to containerise, and a single-node k3s underneath would only
-add a control plane to keep alive during a CTF.
+create Kubernetes objects. Kubernetes would be one machine's worth of work for
+zero benefit here: the challenge this runs is a full QEMU VM with its own
+bootloader, so there is nothing to containerise, and a single-node k3s
+underneath would only add a control plane to keep alive during a CTF.
 
 `KUBERNETES_TARGET_NAMESPACE` is deliberately left unset. It is the only thing
-that makes a scenario instantiate the Kubernetes provider — the scenario SDK
-switches on `os.LookupEnv` of that variable — so leaving it out is what keeps
+that makes a scenario instantiate the Kubernetes provider, because the scenario
+SDK switches on `os.LookupEnv` of that variable. Leaving it out is what keeps
 this deployment out of Kubernetes entirely.
 
 The other obvious shortcut, handing chall-manager the docker socket so scenarios
@@ -67,8 +67,8 @@ owns:
 /run/wrappers/bin/sudo -n /run/current-system/sw/bin/homewort-instance <verb> --identity <ID>
 ```
 
-`homewort-instance` validates the identity, hands out one slot from a fixed pool
-and prints JSON. That is the whole privileged surface.
+`homewort-instance` validates the identity, hands out one slot from a fixed
+pool, and prints JSON. That one verb is the whole privileged surface.
 
 ## Trust boundary
 
@@ -77,20 +77,20 @@ it RCE-as-a-Service without irony: anything that can reach its port can make it
 run an arbitrary Pulumi program as a service that holds a sudo rule. Reaching
 the port is owning the host.
 
-So the port is never public:
+For that reason the port opens on one bridge only, and nowhere globally:
 
 ```nix
 networking.firewall.interfaces.challmgr0.allowedTCPPorts = [ 8080 ];
 ```
 
-and nothing global. `challmgr0` is the bridge of the `challmgr` docker network
+`challmgr0` is the bridge of the `challmgr` docker network
 (`10.89.0.0/24`, gateway `10.89.0.1`) that `docker-network-challmgr.service`
 creates. The fixed bridge name is the entire reason that unit exists: left to
 itself docker would pick a `br-<hash>` name and the firewall rule would have
 nothing stable to match on.
 
 The CTFd container is attached to that network by `services/ctfd`, which is why
-it can reach `http://10.89.0.1:8080` — the gateway address is the host. A
+it can reach `http://10.89.0.1:8080`: the gateway address is the host. A
 process anywhere else on the machine, or on `docker0`, cannot: its packets
 arrive on the wrong interface and the firewall drops them.
 
@@ -104,15 +104,15 @@ the janitor's gRPC target.
 
 ## The registry, and how a scenario gets in
 
-A *scenario* is a Pulumi program distributed as an OCI artifact.
-chall-manager only ever loads scenarios from a registry, so there is one on
+A *scenario* is a Pulumi program distributed as an OCI artifact. chall-manager
+only ever loads scenarios from a registry, so this service runs one on
 `127.0.0.1:5000`, plain HTTP, backed by the nixpkgs `distribution` package with
 a generated config file and filesystem storage under
 `/var/lib/chall-manager-registry`.
 
-Challenge services push their own scenario into it at boot;
-`services/homewort` does this in `homewort-scenario-push.service`. The push must
-match what chall-manager's loader expects, which is not obvious: it is **not** a
+Challenge services push their own scenario into it at boot, as
+`services/homewort` does in `homewort-scenario-push.service`. The push must
+match what chall-manager's loader expects, which is not obvious: it is not a
 tarball. Upstream packs one layer per file, media type
 `application/vnd.ctfer-io.file`, with the layer title set to the file's path
 relative to the scenario root, under artifact type
@@ -147,9 +147,9 @@ challenge-creation time, which is not something to discover during an event.
 Permissions do not survive an OCI round trip, but that is handled upstream: the
 loader chmods the binary itself after pulling it.
 
-`--oci.insecure` is a global switch, not a per-registry one — upstream has no
-per-host setting. That is acceptable here only because `127.0.0.1:5000` is the
-only registry configured.
+`--oci.insecure` is a global switch, not a per-registry one, because upstream
+has no per-host setting. The switch is acceptable here only because
+`127.0.0.1:5000` is the only registry configured.
 
 ## The offline Pulumi recipe
 
@@ -167,11 +167,11 @@ everything it could want is on the unit's `PATH` as an ambient plugin instead:
 | `/run/wrappers/bin` | `sudo` |
 | `/run/current-system/sw/bin` | `homewort-instance` |
 
-plus `PULUMI_BACKEND_URL=file://<stateDir>/pulumi-state`,
-`PULUMI_HOME=<stateDir>/pulumi-home` and `PULUMI_SKIP_UPDATE_CHECK=true`. There
-is no `pulumi login` and no plugin seeding step.
+The unit also sets `PULUMI_BACKEND_URL=file://<stateDir>/pulumi-state`,
+`PULUMI_HOME=<stateDir>/pulumi-home`, and `PULUMI_SKIP_UPDATE_CHECK=true`. It
+needs no `pulumi login` and no plugin seeding step.
 
-Two traps in there.
+The recipe has two traps.
 
 **The `go` binary is not optional.** Even with `options.binary` pointing at a
 prebuilt `main`, `pulumi-language-go` 3.192 runs a "discover package
@@ -179,8 +179,8 @@ requirements" pass over the program directory on every preview and up, and
 aborts the deployment with `couldn't find go binary` if `go` is missing. This
 fires when the challenge is *created*, not when an instance is deployed, so
 without it the first admin save in the CTFd UI fails. `GOPROXY=off` and
-`GOTOOLCHAIN=local` make sure that pass can never turn into a download attempt,
-and `GOCACHE`/`GOPATH` are redirected under `stateDir` because
+`GOTOOLCHAIN=local` make sure that pass can never turn into a download attempt.
+`GOCACHE` and `GOPATH` are redirected under `stateDir` because
 `ProtectSystem=strict` will not let the toolchain create `$HOME/.cache`.
 
 **`pulumi-command` in nixpkgs is 0.9.0, upstream is 1.2.x.** A scenario whose
@@ -190,11 +190,11 @@ repo pin `github.com/pulumi/pulumi-command/sdk v0.9.0` to match.
 
 ## Hardening
 
-`NoNewPrivileges` is impossible for `chall-manager.service`: the whole point of
-the scenario is to call `sudo homewort-instance`, and `sudo` is setuid. The unit
-compensates with `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`,
+`NoNewPrivileges` is impossible for `chall-manager.service`: the scenario exists
+to call `sudo homewort-instance`, and `sudo` is setuid. The unit compensates
+with `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`,
 `RestrictAddressFamilies`, `RestrictSUIDSGID`, `LockPersonality`,
-`ProtectKernelTunables` and `ProtectControlGroups`, with `stateDir` as the only
+`ProtectKernelTunables`, and `ProtectControlGroups`, with `stateDir` as the only
 writable path. `AF_NETLINK` is in the allowed address families because `sudo`
 wants an audit socket.
 
@@ -214,17 +214,17 @@ the pool. It is what makes the deployment hands-off, and it is the reason a
 player who walks away does not hold a slot for the rest of the event.
 
 Upstream can loop internally with `--ticker`, but this deploys it as a oneshot
-plus a timer (`janitorInterval`, 5 min by default) so retries, failures and logs
+plus a timer (`janitorInterval`, 5 min by default) so retries, failures, and logs
 stay in systemd. Run it by hand with:
 
 ```
 systemctl start chall-manager-janitor.service
 ```
 
-The per-instance lifetime itself is **not** configured here. chall-manager has
+The per-instance lifetime itself is not configured here. chall-manager has
 no global timeout knob: `timeout` and `destroy_on_flag` are per-challenge fields
 that arrive over the API when an admin saves a `dynamic_iac` challenge in CTFd.
-For this event they are `2h` and enabled; see `services/ctfd/README.md`.
+For this event they are `2h` and enabled (see `services/ctfd/README.md`).
 
 ## State layout
 
@@ -234,7 +234,7 @@ Everything lives under `stateDir` (`/var/lib/chall-manager`), owned by the
 | path | contents |
 | --- | --- |
 | `store/` | challenge and instance records, and the filesystem locks (`--dir`) |
-| `cache/oci/<digest>/` | scenarios unpacked from the registry, one directory per manifest digest; Pulumi runs the program from here |
+| `cache/oci/<digest>/` | scenarios unpacked from the registry (one directory per manifest digest), where Pulumi runs the program |
 | `pulumi-state/` | the Pulumi file backend: one stack per instance |
 | `pulumi-home/` | `PULUMI_HOME` |
 | `go-cache/`, `go/` | the Go toolchain's caches, kept out of `$HOME` |
@@ -242,8 +242,8 @@ Everything lives under `stateDir` (`/var/lib/chall-manager`), owned by the
 Losing `store/` and `pulumi-state/` orphans every running instance: the VMs keep
 running with slots claimed and nothing left that knows how to release them. The
 registry has its own directory, `/var/lib/chall-manager-registry`, which is
-disposable — every scenario in it is re-pushed from the Nix store on the next
-deploy.
+disposable because every scenario in it is re-pushed from the Nix store on the
+next deploy.
 
 Scenario directories are keyed by manifest digest, so a rebuilt scenario pushed
 under the same tag is picked up as a new directory rather than a stale cache
@@ -264,7 +264,7 @@ curl -s http://127.0.0.1:8080/api/v1/challenge/homewort | jq
 # the instance a given CTFd team holds
 curl -s http://127.0.0.1:8080/api/v1/instance/homewort/<source_id> | jq
 
-# nuke one instance; the slot is released and the flag wiped
+# nuke one instance, which releases the slot and wipes the flag
 curl -s -X DELETE http://127.0.0.1:8080/api/v1/instance/homewort/<source_id>
 ```
 
@@ -280,9 +280,9 @@ curl -s http://127.0.0.1:5000/v2/_catalog | jq
 curl -s http://127.0.0.1:5000/v2/homewort/tags/list | jq
 ```
 
-When a deploy fails, the error CTFd shows is the gRPC status message, which is
-usually truncated. The full Pulumi output — including the program's own
-diagnostics — is in the journal:
+When a deploy fails, the error CTFd shows is the gRPC status message, which
+tends to be truncated. The full Pulumi output, including the program's own
+diagnostics, is in the journal:
 
 ```bash
 journalctl -u chall-manager.service -n 200
@@ -290,8 +290,8 @@ journalctl -u chall-manager.service -n 200
 
 Capacity exhaustion looks like a failed deploy in the CTFd UI: with all eight
 slots taken, `homewort-instance create` exits 4, the scenario fails, and Pulumi
-reports it back up the chain. That is intentional — there is no queue and no
-warm pool.
+reports it back up the chain. The failure is intentional: the deployment has no
+queue and no warm pool.
 
 ## Usage
 
@@ -304,8 +304,8 @@ inventory.instances.chall-manager = {
 };
 ```
 
-All settings are defaulted; an empty `settings` block is the normal case. The
-addresses are not settings on purpose — the subnet, the gateway and the bridge
-name are a contract between this service, the firewall rule and
-`services/ctfd`'s plugin configuration, and changing one of them without the
-others produces a deployment that looks fine and cannot deploy a challenge.
+All settings are defaulted, so an empty `settings` block is the normal case.
+The addresses are not settings on purpose. The subnet, the gateway, and the
+bridge name are a contract between this service, the firewall rule, and
+`services/ctfd`'s plugin configuration. Changing one of them without the others
+produces a deployment that looks fine and cannot deploy a challenge.
