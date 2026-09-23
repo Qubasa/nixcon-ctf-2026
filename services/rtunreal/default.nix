@@ -7,7 +7,7 @@
   manifest.readme = builtins.readFile ./README.md;
 
   roles.server = {
-    description = "Runs the grading VM, the submission desk in front of it and one nginx vhost on `publicPort`.";
+    description = "Runs the grading VM, the submission desk in front of it, and one nginx vhost on `publicPort`.";
 
     interface =
       { lib, ... }:
@@ -26,10 +26,10 @@
             type = lib.types.port;
             default = 43002;
             description = ''
-              Loopback port QEMU forwards `port` to. Loopback only: slirp's
-              `restrict=on` drops replies to any client that is not the host
-              alias, so the public side has to be a host process - here the
-              submission desk.
+              Loopback port QEMU forwards `port` to. It is loopback only because
+              slirp's `restrict=on` drops replies to any client that is not the
+              host alias, so the public side has to be a host process (here the
+              submission desk).
             '';
           };
 
@@ -55,8 +55,8 @@
             type = lib.types.ints.positive;
             default = 6144;
             description = ''
-              Guest RAM in MiB. One nixpkgs evaluation per check and up to two
-              parallel builders.
+              Guest RAM in MiB. It has to hold one nixpkgs evaluation per check
+              and up to two parallel builders.
             '';
           };
 
@@ -101,8 +101,8 @@
             type = lib.types.str;
             default = "nixcon{rtunreal_%s}";
             description = ''
-              `printf` format of the flag, one `%s` for the random part. Held
-              by the host and handed out by the submission desk; it never
+              `printf` format of the flag, one `%s` for the random part. The
+              host holds it and the submission desk hands it out. It never
               reaches the guest.
             '';
           };
@@ -191,9 +191,9 @@
               };
               users.groups.rtunreal-vm = { };
 
-              # The one secret of this challenge, and the reason the grading
-              # runs in a VM: it stays in this process, which evaluates no
-              # player input, while everything that touches player input runs
+              # The flag is the one secret of this challenge and the reason the
+              # grading runs in a VM. It stays in the gateway, which evaluates
+              # no player input, while everything that touches player input runs
               # in a guest that has never seen it.
               clan.core.vars.generators.rtunreal = {
                 files.flag = {
@@ -218,11 +218,11 @@
                 after = [ "network.target" ];
 
                 environment = {
-                  # Versioned by the image it overlays: a plain restart reuses
-                  # the overlay, so the guest keeps its eval cache and its
-                  # already-built submissions, while a *new* image gets a new
-                  # overlay. A fixed filename would keep booting the system
-                  # the overlay was first created against, since qcow2 pins
+                  # The overlay is versioned by the image it overlays: a plain
+                  # restart reuses the overlay, so the guest keeps its eval
+                  # cache and its already-built submissions, while a *new* image
+                  # gets a new overlay. A fixed filename would keep booting the
+                  # system the overlay was first created against, since qcow2 pins
                   # its backing file in the header.
                   NIX_DISK_IMAGE = "${stateDir}/disk-${builtins.substring 0 12 (baseNameOf vm)}.qcow2";
                   # The forward itself is `virtualisation.forwardPorts` in
@@ -335,9 +335,10 @@
                 # `${settings.nginx.hostName}` vhost on 443.
                 virtualHosts.rtunreal = {
                   serverName = settings.nginx.hostName;
-                  # Plain HTTP, no ACME: this vhost is not on 80, and HTTP-01
-                  # only ever answers there. `default` so it also serves a
-                  # request that arrives with a bare IP in `Host`.
+                  # The vhost uses plain HTTP and no ACME because it is not on
+                  # 80, and HTTP-01 only ever answers there. It is `default` so
+                  # that it also serves a request that arrives with a bare IP in
+                  # `Host`.
                   default = true;
                   listen = [
                     {

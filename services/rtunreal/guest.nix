@@ -1,6 +1,6 @@
 # The grading guest: the check runner, a Nix daemon with no way out, and the
 # pristine challenge tree it grades against. It is the containment boundary, so
-# it holds no secret at all - the flag stays on the host, which only sees this
+# it holds no secret at all. The flag stays on the host, which only sees this
 # guest's verdict. See ./README.md.
 {
   port,
@@ -24,14 +24,14 @@ let
   app = (pkgs.callPackage ./package.nix { }).builder;
 
   # The tree every submission starts from, and the tree `flake.nix` and
-  # `flake.lock` are restored from once a patch applied. The same derivation
-  # the host serves as a tarball.
+  # `flake.lock` are restored from once a patch applied. It is the same
+  # derivation the host serves as a tarball.
   pristine = pkgs.callPackage ./source.nix { src = src-rtunreal; };
 
-  # The challenge pins nixpkgs by tarball URL; this image ships that exact tree
+  # The challenge pins nixpkgs by tarball URL. This image ships that exact tree
   # and the runner overrides the input with it, because the guest has no egress
   # to fetch it with. Drift between the two is the one way this service can
-  # break silently - every build would then fail on a missing path - so it
+  # break silently (every build would then fail on a missing path), so it
   # fails loudly at eval instead.
   lockedNixpkgs =
     (builtins.fromJSON (builtins.readFile "${src-rtunreal}/flake.lock")).nodes.nixpkgs.locked;
@@ -111,8 +111,8 @@ in
 
   # The guest boots through its own bootloader, so nothing puts the kernel on
   # the serial line by default and `journalctl -u rtunreal-vm` on the host
-  # would show an empty screen after GRUB. This is the only view into a guest
-  # that fails to come up.
+  # would show an empty screen after GRUB. The serial console is the only view
+  # into a guest that fails to come up.
   boot.kernelParams = [ "console=ttyS0" ];
 
   nix = {
@@ -127,7 +127,8 @@ in
       # Player builds are the challenge's payload, and the sandbox is the only
       # thing keeping them inside the store.
       sandbox = true;
-      # Two cores, one submission at a time - see the semaphore in builder.py.
+      # One submission builds at a time (see the semaphore in builder.py) and
+      # gets two cores.
       max-jobs = 2;
       cores = 2;
     };
@@ -196,7 +197,7 @@ in
     ];
 
     # `nix` is the guest's own daemon package, so client and daemon are the
-    # same version; `git` and `patch` are the two ways a submission can be
+    # same version. `git` and `patch` are the two ways a submission can be
     # applied.
     path = [
       config.nix.package
@@ -232,8 +233,8 @@ in
       StateDirectory = "rtunreal";
       StateDirectoryMode = "0750";
       WorkingDirectory = stateDir;
-      # Load bearing, not hygiene: `ProtectSystem=strict` leaves /tmp
-      # read-only, and `nix build` fails to create its temporary build
+      # PrivateTmp is load bearing, not hygiene: `ProtectSystem=strict` leaves
+      # /tmp read-only, and `nix build` fails to create its temporary build
       # directory without a private one.
       PrivateTmp = true;
 

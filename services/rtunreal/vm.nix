@@ -54,7 +54,7 @@ let
           # No egress. Submissions are arbitrary Nix, evaluated unsandboxed
           # and built with fixed-output derivations that run outside the build
           # sandbox's network namespace, so this is the only thing between a
-          # player and the host's network - where chall-manager's
+          # player and the host's network, where chall-manager's
           # unauthenticated API listens.
           restrictNetwork = true;
           forwardPorts = [
@@ -74,5 +74,5 @@ let
 in
 # `vmWithBootLoader`, not `vm`: it boots a disk image holding its own store,
 # while the plain VM variant would 9p-mount the host's /nix/store into the
-# guest - the store a player's builder would then be free to read.
+# guest, and a player's builder would then be free to read that store.
 guest.config.system.build.vmWithBootLoader

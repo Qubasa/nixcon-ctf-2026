@@ -1,12 +1,12 @@
 """Host-side submission desk for the `rtunreal` challenge.
 
 Hands out the challenge tarball, takes a unified diff, forwards it to the
-builder inside the challenge VM and prints the flag when every check the
+builder inside the challenge VM, and prints the flag when every check the
 builder ran came back green.
 
-The split is the whole point of this process: the flag is here, the evaluation
-of player-supplied Nix is over there. Nix evaluates expressions unsandboxed, so
-a `builtins.readFile` in a submission must not run anywhere near this file.
+The split is why this process exists: the flag is here, and the evaluation of
+player-supplied Nix happens over there. Nix evaluates expressions unsandboxed,
+so a `builtins.readFile` in a submission must not run anywhere near this file.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ TARBALL_ROUTE = "/rtunreal-challenge.tar.gz"
 
 @dataclass(frozen=True)
 class Config:
-    """Everything the desk needs, all of it baked in by the NixOS module."""
+    """Holds everything the desk needs, all of it baked in by the NixOS module."""
 
     port: int
     builder: str
@@ -64,7 +64,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pimp my PHP - submission desk</title>
+<title>Pimp my PHP: submission desk</title>
 <style>
  body {{ background: #11151c; color: #d8dee9; font-family: monospace;
         margin: 0 auto; max-width: 60rem; padding: 2rem 1rem; line-height: 1.5; }}
@@ -86,19 +86,20 @@ PAGE = """<!doctype html>
 <body>
 <h1>Pimp my PHP</h1>
 <p>Package the PHP script so the flake's checks pass, then submit the diff that
-gets you there. Every check has to build; the flag is printed when they all do.</p>
+gets you there. Every check has to build, and the flag is printed when they all do.</p>
 <ol>
- <li>Get the source: <a href="{tarball}">{tarball}</a>
-     (or <code>git clone</code> it from the URL in the task description).</li>
+ <li>Get the source: <a href="{tarball}">{tarball}</a>.</li>
  <li>Write <code>input-derivation.nix</code>, add whatever else you need, and make
      <code>nix flake check</code> pass locally.</li>
- <li>Produce the diff: <code>git add -A &amp;&amp; git diff HEAD</code>
-     (<code>diff -ruN</code> against a pristine copy works too).</li>
+ <li>Produce the diff with <code>diff -ruN</code> against a pristine copy of the
+     tarball. In a git checkout,
+     <code>git add -A &amp;&amp; git add -f input-derivation.nix &amp;&amp; git diff HEAD</code>
+     works too.</li>
  <li>Paste it below, or
      <code>curl --data-binary @my.patch {origin}/submit</code>.</li>
 </ol>
 <p>The builder runs <b>offline</b> in a throwaway VM: no substituters, no network,
-no fetchers. It ships the challenge's own nixpkgs plus the build closure a
+and no fetchers. It ships the challenge's own nixpkgs plus the build closure a
 working solution needs. <code>flake.nix</code> and <code>flake.lock</code> are
 restored from the pristine tree after your patch applies, so the checks you are
 graded against are the ones you were given. One submission builds at a time.</p>
@@ -124,8 +125,8 @@ def render_result(verdict: dict[str, Any], flag: str | None) -> str:
     """Turn the builder's JSON into the part of the page below the form."""
     parts = ["<h2>Result</h2>"]
 
-    # Anything that never reached the checks - a patch that does not apply, a
-    # submission the runner refused, a builder that did not answer - carries
+    # Anything that never reached the checks (a patch that does not apply, a
+    # submission the runner refused, or a builder that did not answer) carries
     # its own message.
     if verdict.get("stage") != "checks":
         message = str(verdict.get("message") or "The submission was not graded.")

@@ -1,12 +1,12 @@
 """Guest-side check runner for the `rtunreal` challenge.
 
 Takes a unified diff over HTTP, applies it to a pristine copy of the challenge
-source, rebuilds the flake's checks offline and answers with one verdict per
+source, rebuilds the flake's checks offline, and answers with one verdict per
 check.
 
 It holds no secret. The flag lives on the host, which only ever sees the
-verdict this returns, so a player's Nix expression - evaluated here with no
-sandbox around the evaluator, as Nix always does - has nothing to read.
+verdict this returns. A player's Nix expression is evaluated here with no
+sandbox around the evaluator, as Nix always does, but it has nothing to read.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ LOG_TAIL = 8192
 
 # The two files a submission may not decide, restored from the pristine tree
 # after the patch applies: flake.nix defines the checks the submission is
-# graded against, flake.lock pins the nixpkgs the image was seeded for.
+# graded against, and flake.lock pins the nixpkgs the image was seeded for.
 PRISTINE_FILES = ("flake.nix", "flake.lock")
 
 # `flake.nix` calls `callPackage ./input-derivation.nix`, so a submission
@@ -41,7 +41,7 @@ REQUIRED_FILE = "input-derivation.nix"
 
 @dataclass(frozen=True)
 class Config:
-    """Everything the runner needs, all of it baked in by the NixOS module."""
+    """Holds everything the runner needs, all of it baked in by the NixOS module."""
 
     port: int
     source: Path
