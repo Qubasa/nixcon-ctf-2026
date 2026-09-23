@@ -23,7 +23,7 @@ let
   '';
 
   # The allocator never chdirs, so relative state paths resolve against the
-  # builder's cwd - a private, unique directory - which keeps the test off any
+  # builder's cwd (a private, unique directory), which keeps the test off any
   # shared absolute path without needing an escape hatch in the allocator.
   # Production always passes absolute paths.
   allocator = import ./allocator.nix {
@@ -41,7 +41,8 @@ let
     readyProbe = "${readyProbeStub}";
   };
 
-  # Same allocator, its own state tree, and a probe that never succeeds.
+  # Builds the same allocator with its own state tree and a probe that never
+  # succeeds.
   allocatorDeadGuest = import ./allocator.nix {
     inherit pkgs lib;
     maxSlots = 1;
@@ -73,7 +74,7 @@ pkgs.runCommand "homewort-allocator-test"
     alloc=${allocator}/bin/homewort-instance
 
     # `create` is idempotent: same identity, same slot, same flag, byte-identical
-    # JSON. chall-manager retries, so this is load bearing.
+    # JSON. chall-manager retries, so the idempotency is load bearing.
     a1=$("$alloc" create --identity alpha)
     a2=$("$alloc" create --identity alpha)
     [[ $a1 == "$a2" ]]
@@ -82,10 +83,11 @@ pkgs.runCommand "homewort-allocator-test"
     jq -e '.connection_info == "ssh friend@ctf.example.org -p 2201  (password: word-word-word)"' <<< "$a1"
     [[ $(jq -r 'keys_unsorted | join(",")' <<< "$a1") == identity,slot,port,flag,connection_info ]]
 
-    # One line of JSON on stdout and nothing else: the scenario parses it whole.
+    # `create` prints one line of JSON on stdout and nothing else, because the
+    # scenario parses it whole.
     [[ $(wc -l <<< "$a1") == 1 ]]
 
-    # A second identity gets its own slot, port and flag.
+    # A second identity gets its own slot, port, and flag.
     b=$("$alloc" create --identity bravo)
     jq -e '.identity == "bravo" and .slot == 2 and .port == 2202' <<< "$b"
     [[ $(jq -r .flag <<< "$a1") != $(jq -r .flag <<< "$b") ]]
@@ -98,7 +100,7 @@ pkgs.runCommand "homewort-allocator-test"
     "$alloc" create --identity charlie 2> /dev/null || rc=$?
     [[ $rc == 4 ]]
 
-    # Malformed identity: exit 2, no slot consumed.
+    # A malformed identity exits 2 and consumes no slot.
     rc=0
     "$alloc" create --identity 'Bad Ident' 2> /dev/null || rc=$?
     [[ $rc == 2 ]]
@@ -106,7 +108,7 @@ pkgs.runCommand "homewort-allocator-test"
     "$alloc" status --identity "" 2> /dev/null || rc=$?
     [[ $rc == 2 ]]
 
-    # Unknown identity: exit 3, nothing on stdout.
+    # An unknown identity exits 3 and prints nothing on stdout.
     rc=0
     stdout=$("$alloc" status --identity nobody 2> /dev/null) || rc=$?
     [[ $rc == 3 && -z $stdout ]]
@@ -130,8 +132,9 @@ pkgs.runCommand "homewort-allocator-test"
 
     "$alloc" list | jq -e 'length == 2'
 
-    # A guest that never answers: exit 5, and the slot is free again
-    # afterwards, so the next team gets it instead of losing it for the event.
+    # A guest that never answers makes `create` exit 5, and the slot is free
+    # again afterwards, so the next team gets it instead of losing it for the
+    # event.
     dead=${allocatorDeadGuest}/bin/homewort-instance
     rc=0
     "$dead" create --identity delta 2> /dev/null || rc=$?

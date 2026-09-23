@@ -1,8 +1,8 @@
 # The seam between chall-manager's Pulumi scenario and the VM host.
 #
-# The scenario has no idea what a systemd unit or a qcow2 overlay is; it runs
+# The scenario has no idea what a systemd unit or a qcow2 overlay is. It runs
 # one command per lifecycle event and parses one line of JSON. Everything that
-# knows about slots, flags and QEMU lives here, so the scenario stays a thin
+# knows about slots, flags, and QEMU lives here, so the scenario stays a thin
 # `pulumi-command` wrapper and this file stays testable without KVM.
 {
   pkgs,
@@ -19,9 +19,10 @@
   readyTimeout,
   loginUser ? "friend",
 
-  # Slot `n`'s VM unit is `<unitPrefix>-<n>.service`. Mandatory, and the module
-  # derives its own unit names from the same string: an allocator that stops
-  # the wrong pool's units is worse than one that fails to evaluate.
+  # Slot `n`'s VM unit is `<unitPrefix>-<n>.service`. The argument is mandatory,
+  # and the module derives its own unit names from the same string: an
+  # allocator that stops the wrong pool's units is worse than one that fails to
+  # evaluate.
   unitPrefix,
 
   stateDir ? "/var/lib/homewort-v2-slots",
@@ -100,8 +101,8 @@ pkgs.writeShellApplication {
 
     # Slot bookkeeping is a directory tree, not a database: `<stateDir>/<n>/`
     # holds `identity` (presence == slot claimed) and `flag` (what fw_cfg hands
-    # to the guest). flock serialises the claim, nothing else - `create` must
-    # not hold the lock while it waits minutes for a guest to boot.
+    # to the guest). flock serialises the claim and nothing else, because
+    # `create` must not hold the lock while it waits minutes for a guest to boot.
     lock() {
       exec 9>>"$lockFile"
       flock "$@" 9
@@ -156,13 +157,13 @@ pkgs.writeShellApplication {
 
     teardown() {
       local n=$1
-      # A slot may be torn down while its unit is dead, masked or never was:
+      # A slot may be torn down while its unit is dead, masked, or never was:
       # `destroy` is contractually silent and idempotent. Stopping the unit is
       # all it takes to reclaim the disk: the VM service wipes its own overlay
       # in `ExecStopPost`, which also covers a crash or a manual `systemctl
-      # stop`. Keeping that out of here means the allocator only ever writes
-      # inside `stateDir`, and chall-manager - whose mount namespace the sudo
-      # call inherits - only has to open up that one path.
+      # stop`. Keeping the overlay cleanup out of here means the allocator only
+      # ever writes inside `stateDir`, and chall-manager (whose mount namespace
+      # the sudo call inherits) only has to open up that one path.
       "$systemctl" stop "$(unit_of_slot "$n")" || true
       rm -rf "''${stateDir:?}/''${n:?}"
     }
@@ -174,7 +175,7 @@ pkgs.writeShellApplication {
       port=$((basePort + n - 1))
       connection_info=$(printf -- 'ssh %s@%s -p %s  (password: %s)' \
         ${lib.escapeShellArg loginUser} "$publicHost" "$port" "$password")
-      # jq builds the object so no identity, flag or password can smuggle a
+      # jq builds the object so no identity, flag, or password can smuggle a
       # quote into the scenario's parser.
       jq -c -n \
         --arg identity "$identity" \
@@ -274,7 +275,7 @@ pkgs.writeShellApplication {
     case $verb in
       create | destroy | status)
         # The identity is a chall-manager-supplied string that ends up in file
-        # names and unit lookups; anything but the contracted charset is a bug
+        # names and unit lookups. Anything but the contracted charset is a bug
         # upstream, not something to sanitise into silence.
         [[ $identity =~ ^[a-z0-9]{1,64}$ ]] || die "malformed identity: '$identity'" 2
         "cmd_$verb" "$identity"

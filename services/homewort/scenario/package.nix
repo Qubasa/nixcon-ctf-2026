@@ -14,8 +14,8 @@ buildGoModule {
   pname = "homewort-scenario";
   inherit version;
 
-  # Only the scenario itself; a wider fileset would drag unrelated homewort
-  # files into the OCI artifact, which is pushed layer-per-file.
+  # Only the scenario itself goes in. A wider fileset would drag unrelated
+  # homewort files into the OCI artifact, which is pushed layer-per-file.
   src = lib.fileset.toSource {
     root = ./.;
     fileset = lib.fileset.unions [

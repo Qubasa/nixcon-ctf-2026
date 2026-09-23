@@ -19,9 +19,9 @@
             description = ''
               Number of concurrent challenge instances the host offers. Slots
               are claimed on demand, but every claimed slot runs a full VM, so
-              this is a hard RAM budget - and this pool shares the host with
+              this is a hard RAM budget. This pool also shares the host with
               the 12-slot `homewort` pool, hence the smaller default: this is
-              the harder variant, fewer players reach it at once. Claiming
+              the harder variant, and fewer players reach it at once. Claiming
               beyond it fails the allocator with exit code 4, which surfaces as
               a failed deploy in the CTFd UI.
             '';
@@ -32,8 +32,8 @@
             default = 2301;
             description = ''
               TCP port of the first slot's forwarded SSH. Slot `n` (starting
-              at 1) listens on `basePort + n - 1`. Starts a hundred above
-              `homewort`'s 2201, which owns 2201-2212.
+              at 1) listens on `basePort + n - 1`. The default starts a hundred
+              above `homewort`'s 2201, because that pool owns 2201-2212.
             '';
           };
 
@@ -71,7 +71,7 @@
             type = lib.types.ints.positive;
             default = 4096;
             description = ''
-              RAM per VM in MiB. `sudo rebuildHome` evaluates a full NixOS
+              RAM per VM in MiB. `sudo rebuildHome-friend` evaluates a full NixOS
               configuration inside the VM, which needs a few GiB.
             '';
           };
@@ -120,7 +120,7 @@
               Seconds `homewort-v2-instance create` waits for the guest's SSH
               banner before giving up, releasing the slot again and failing
               with exit code 5. A cold boot of the challenge image takes well
-              under a minute; the headroom is for a host that may also be
+              under a minute. The headroom is for a host that may also be
               running a full `homewort` pool.
             '';
           };
@@ -144,7 +144,7 @@
 
             # Every identifier of this pool derives from here, so it never
             # collides with the `homewort` pool on the same machine: units,
-            # state directories, the user and the allocator's stop/start
+            # state directories, the user, and the allocator's stop/start
             # targets all carry it.
             name = "homewort-v2";
             unitPrefix = "${name}-vm";
@@ -175,9 +175,10 @@
               systemctl = "${config.systemd.package}/bin/systemctl";
             };
 
-            # Loose `Pulumi.yaml` and a prebuilt `main` at the derivation root,
-            # because chall-manager loads a scenario as one OCI layer per file
-            # and stats those two names - a tarball layer would not load.
+            # The scenario package puts a loose `Pulumi.yaml` and a prebuilt
+            # `main` at the derivation root, because chall-manager loads a
+            # scenario as one OCI layer per file and stats those two names. A
+            # tarball layer would not load.
             scenario = pkgs.callPackage ./scenario/package.nix { };
             scenarioRef = "127.0.0.1:5000/${name}:${scenario.version}";
 
@@ -217,10 +218,10 @@
             };
 
             # `mus-vm` is the challenge's own bootable variant: same machine as
-            # `mus`, plus the closure an offline `sudo rebuildHome` needs already
-            # in the guest store. The bootloader lives in the image so a player's
-            # `nixos-rebuild switch` succeeds; the host Nix store is not shared
-            # into the guest and the guest has no egress.
+            # `mus`, plus the closure an offline `sudo rebuildHome-friend` needs
+            # already in the guest store. The bootloader lives in the image so a
+            # player's `nixos-rebuild switch` succeeds. The host Nix store is not
+            # shared into the guest, and the guest has no egress.
             vm =
               (inputs.homewort-v2.nixosConfigurations.mus-vm.extendModules {
                 modules = [
@@ -264,8 +265,8 @@
                     # host alias, which `restrict=on` lets the guest answer.
                     # Public traffic arrives through the -ssh proxy unit.
                     QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString internalPort}-:22";
-                    # Root-only sysfs blob inside the guest; the ctf-flag
-                    # service installs it as /etc/flag. The allocator writes
+                    # A root-only sysfs blob inside the guest, which the ctf-flag
+                    # service installs as /etc/flag. The allocator writes
                     # this file before it starts the unit, so each claim of the
                     # slot gets a different flag.
                     QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${slotDir}/${toString n}/flag";
@@ -315,8 +316,8 @@
             # QEMU's slirp keeps a non-loopback client's address inside the
             # guest network, and `restrict=on` then drops the guest's replies to
             # it: the player's TCP handshake completes against slirp and the SSH
-            # banner never arrives. So the public port belongs to a host process
-            # that talks to the guest over loopback.
+            # banner never arrives. The public port therefore belongs to a host
+            # process that talks to the guest over loopback.
             sshProxySocket = n: {
               name = "${unitPrefix}-${toString n}-ssh";
               value = {
@@ -363,9 +364,10 @@
             };
             users.groups.${name} = { };
 
-            # The login players are given. Public on purpose: it goes into the
-            # challenge description. Its own generator, not `homewort`'s: the
-            # two pools are separate challenges and must not share a password.
+            # The login players are given. It is public on purpose: it goes into
+            # the challenge description. It has its own generator, not
+            # `homewort`'s, because the two pools are separate challenges and
+            # must not share a password.
             clan.core.vars.generators.homewort-v2-login = {
               files.password.secret = false;
               files.password-hash.secret = false;
@@ -384,8 +386,9 @@
 
             environment.systemPackages = [ allocator ];
 
-            # World-traversable so the VM services, which run as `homewort-v2`
-            # under `ProtectSystem=strict`, can read their own `<n>/flag`.
+            # The slot directory is world-traversable so the VM services, which
+            # run as `homewort-v2` under `ProtectSystem=strict`, can read their
+            # own `<n>/flag`.
             systemd.tmpfiles.rules = [ "d ${slotDir} 0755 root root -" ];
 
             security.sudo.extraRules = lib.optionals (settings.allowUser != null) [
@@ -426,7 +429,7 @@
                     # artifact root.
                     WorkingDirectory = "${scenario}";
                     ExecStart = "${pushScenario}/bin/${name}-scenario-push";
-                    # oras looks for a docker config under $HOME; the store path
+                    # oras looks for a docker config under $HOME. The store path
                     # it works in is read-only, so give it the private tmpdir.
                     Environment = [ "HOME=%T" ];
                     PrivateTmp = true;

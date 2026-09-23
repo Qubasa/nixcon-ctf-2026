@@ -7,7 +7,7 @@
 // homewort-instance allocator on the CTF host, so this program is only a bridge:
 // it drives the allocator through a local.Command whose lifecycle Pulumi already
 // owns, then republishes the allocator's JSON under the two output names
-// chall-manager harvests in pkg/iac/stack.go -- "connection_info" (string) and
+// chall-manager harvests in pkg/iac/stack.go: "connection_info" (string) and
 // "flags" (array of strings).
 //
 // The chall-manager Go SDK is deliberately not imported: it statically pulls in
@@ -25,8 +25,8 @@ import (
 )
 
 // defaultAllocator is how the scenario reaches the allocator on the CTF host.
-// chall-manager runs unprivileged, hence sudo; -n keeps a misconfigured sudoers
-// rule a hard failure instead of a hang on a password prompt.
+// chall-manager runs unprivileged, hence sudo. The -n flag keeps a misconfigured
+// sudoers rule a hard failure instead of a hang on a password prompt.
 const defaultAllocator = "/run/wrappers/bin/sudo -n /run/current-system/sw/bin/homewort-instance"
 
 // allocation is the single JSON line `homewort-instance create` prints on stdout.
@@ -62,9 +62,10 @@ func main() {
 			return err
 		}
 
-		// Parse once; both exports are projections of the same allocation. An
-		// unparseable or incomplete payload fails the whole deployment, which
-		// CTFd surfaces to the player, rather than handing out an empty flag.
+		// Parse once, because both exports are projections of the same
+		// allocation. An unparseable or incomplete payload fails the whole
+		// deployment, which CTFd surfaces to the player, rather than handing out
+		// an empty flag.
 		alloc := instance.Stdout.ApplyT(func(stdout string) (allocation, error) {
 			var a allocation
 			if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &a); err != nil {

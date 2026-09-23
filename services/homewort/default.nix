@@ -118,7 +118,7 @@
               Seconds `homewort-instance create` waits for the guest's SSH
               banner before giving up, releasing the slot again and failing
               with exit code 5. A cold boot of the challenge image takes well
-              under a minute; the headroom is for a host under load from seven
+              under a minute. The headroom is for a host under load from seven
               other VMs.
             '';
           };
@@ -165,10 +165,10 @@
               systemctl = "${config.systemd.package}/bin/systemctl";
             };
 
-            # Built by ScenarioAgent's package: loose `Pulumi.yaml` and a
-            # prebuilt `main` at the derivation root, because chall-manager
-            # loads a scenario as one OCI layer per file and stats those two
-            # names - a tarball layer would not load.
+            # The scenario package puts a loose `Pulumi.yaml` and a prebuilt
+            # `main` at the derivation root, because chall-manager loads a
+            # scenario as one OCI layer per file and stats those two names. A
+            # tarball layer would not load.
             scenario = pkgs.callPackage ./scenario/package.nix { };
             scenarioRef = "127.0.0.1:5000/homewort:${scenario.version}";
 
@@ -210,8 +210,8 @@
             # `mus-vm` is the challenge's own bootable variant: same machine as
             # `mus`, plus the closure an offline `sudo rebuildHome` needs already
             # in the guest store. The bootloader lives in the image so a player's
-            # `nixos-rebuild switch` succeeds; the host Nix store is not shared
-            # into the guest and the guest has no egress.
+            # `nixos-rebuild switch` succeeds. The host Nix store is not shared
+            # into the guest, and the guest has no egress.
             vm =
               (inputs.homewort.nixosConfigurations.mus-vm.extendModules {
                 modules = [
@@ -255,8 +255,8 @@
                     # host alias, which `restrict=on` lets the guest answer.
                     # Public traffic arrives through the -ssh proxy unit.
                     QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString internalPort}-:22";
-                    # Root-only sysfs blob inside the guest; the ctf-flag
-                    # service installs it as /etc/flag. The allocator writes
+                    # A root-only sysfs blob inside the guest, which the ctf-flag
+                    # service installs as /etc/flag. The allocator writes
                     # this file before it starts the unit, so each claim of the
                     # slot gets a different flag.
                     QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${slotDir}/${toString n}/flag";
@@ -304,8 +304,8 @@
             # QEMU's slirp keeps a non-loopback client's address inside the
             # guest network, and `restrict=on` then drops the guest's replies to
             # it: the player's TCP handshake completes against slirp and the SSH
-            # banner never arrives. So the public port belongs to a host process
-            # that talks to the guest over loopback.
+            # banner never arrives. The public port therefore belongs to a host
+            # process that talks to the guest over loopback.
             sshProxySocket = n: {
               name = "homewort-vm-${toString n}-ssh";
               value = {
@@ -352,8 +352,8 @@
             };
             users.groups.homewort = { };
 
-            # The login players are given. Public on purpose: it goes into the
-            # challenge description. Rotating it means regenerating this and
+            # The login players are given. It is public on purpose: it goes into
+            # the challenge description. Rotating it means regenerating this and
             # redeploying, which rebuilds the image.
             clan.core.vars.generators.homewort-login = {
               files.password.secret = false;
@@ -373,8 +373,9 @@
 
             environment.systemPackages = [ allocator ];
 
-            # World-traversable so the VM services, which run as `homewort`
-            # under `ProtectSystem=strict`, can read their own `<n>/flag`.
+            # The slot directory is world-traversable so the VM services, which
+            # run as `homewort` under `ProtectSystem=strict`, can read their own
+            # `<n>/flag`.
             systemd.tmpfiles.rules = [ "d ${slotDir} 0755 root root -" ];
 
             security.sudo.extraRules = lib.optionals (settings.allowUser != null) [
@@ -415,7 +416,7 @@
                     # artifact root.
                     WorkingDirectory = "${scenario}";
                     ExecStart = "${pushScenario}/bin/homewort-scenario-push";
-                    # oras looks for a docker config under $HOME; the store path
+                    # oras looks for a docker config under $HOME. The store path
                     # it works in is read-only, so give it the private tmpdir.
                     Environment = [ "HOME=%T" ];
                     PrivateTmp = true;
