@@ -6,7 +6,7 @@
   makeWrapper,
   nodejs,
   nix,
-  # The challenge's own repository, consumed as a plain source tree the same
+  # The challenge's own repository is consumed as a plain source tree, the same
   # way the homewort flakes are: `challenges/` in this repo is a gitignored
   # scratch mirror, so a path into it is invisible to the flake.
   src-baas,
@@ -21,12 +21,12 @@ let
     version = "0.1.0";
   };
 
-  # Copied file by file rather than filtered: the challenge repo also holds
-  # `flag.txt`, `payload.nix` (the published solution) and a README, and the
-  # flag in particular must never reach the store of a machine whose whole job
-  # is serving `/nix/store` over HTTP. The deployed flag comes from the `baas`
-  # clan var. An allowlist fails loudly when the repo gains a file; a denylist
-  # would ship it.
+  # The source is copied file by file rather than filtered: the challenge repo
+  # also holds `flag.txt`, `payload.nix` (the published solution), and a
+  # README, and the flag in particular must never reach the store of a machine
+  # whose whole job is serving `/nix/store` over HTTP. The deployed flag comes
+  # from the `baas` clan var. An allowlist fails loudly when the repo gains a
+  # file, but a denylist would ship it.
   src = runCommandLocal "baas-src" { } ''
     mkdir -p "$out/views"
     install -m444 ${src-baas}/index.js "$out/index.js"
@@ -54,16 +54,16 @@ stdenvNoCC.mkDerivation {
   nativeBuildInputs = [ makeWrapper ];
 
   postPatch = ''
-    # The listening port must be a deployment decision: 3201 is what this
-    # service forwards into the guest, and on the host itself 3000 is already
+    # The listening port must be a deployment decision: the service sets it
+    # through its `port` setting, and on the host itself 3000 is already
     # gitea's loopback port.
     substituteInPlace index.js \
       --replace-fail ${lib.escapeShellArg portLine} ${lib.escapeShellArg portPatched}
 
     # `builtPaths` is keyed on `req.ip`, and Express 5 defaults to
     # `trust proxy = false`. Behind the host's nginx every request would then
-    # report 127.0.0.1, which is one shared bucket for all players - and the
-    # bucket the startup flag build lands in - so `GET /` would hand the flag's
+    # report 127.0.0.1, which puts all players in one shared bucket. The startup
+    # flag build would land in that bucket too, so `GET /` would hand the flag's
     # store path to everybody. The bootstrap POST sends an unguessable
     # `X-Forwarded-For` for the same reason: with all hops trusted, the
     # left-most entry wins, so the flag must not be parked on an address a

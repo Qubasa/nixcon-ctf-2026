@@ -17,9 +17,9 @@
             type = lib.types.port;
             default = 3000;
             description = ''
-              Port the app listens on inside the guest. Guest-internal, so the
-              app's own default is fine here; on the host itself 3000 is
-              gitea's.
+              Port the app listens on inside the guest. The port is
+              guest-internal, so the app's own default is fine here, although
+              on the host itself 3000 is gitea's.
             '';
           };
 
@@ -39,10 +39,10 @@
             type = lib.types.port;
             default = 8081;
             description = ''
-              Port the nginx vhost listens on. Not 80 or 443: those belong to
-              CTFd and gitea, whose certificates cover their own names, and not
-              8080 either, because chall-manager has no listen-address flag and
-              already binds `0.0.0.0:8080`.
+              Port the nginx vhost listens on. It cannot be 80 or 443, because
+              those belong to CTFd and gitea, whose certificates cover their own
+              names. It cannot be 8080 either, because chall-manager has no
+              listen-address flag and already binds `0.0.0.0:8080`.
             '';
           };
 
@@ -80,7 +80,7 @@
             default = "nixcon{baas_%s}";
             description = ''
               `printf` template the `baas` generator fills with 32 hex
-              characters to mint the flag. Must contain exactly one `%s`.
+              characters to mint the flag. It must contain exactly one `%s`.
             '';
           };
 
@@ -103,8 +103,8 @@
                 default = false;
                 description = ''
                   Put Anubis in front of the app as a proof-of-work anti-bot
-                  challenge. Off by default, unlike CTFd's: this challenge is
-                  driven by `curl` and scripts, and a browser interstitial
+                  challenge. It is off by default, unlike CTFd's: this challenge
+                  is driven by `curl` and scripts, and a browser interstitial
                   breaks every non-browser client.
                 '';
               };
@@ -168,8 +168,8 @@
 
             # `vmWithBootLoader`, not `vm`: it boots a disk image holding its
             # own store, while the plain VM variant would 9p-mount the host's
-            # /nix/store into the guest - which is exactly what this VM exists
-            # to prevent, since the app serves any store path over HTTP.
+            # /nix/store into the guest. Preventing that mount is exactly why
+            # this VM exists, since the app serves any store path over HTTP.
             vm = guest.config.system.build.vmWithBootLoader;
 
             proxyTimeouts = ''
@@ -221,20 +221,21 @@
 
               systemd.services.baas-vm = {
                 description = "baas challenge VM";
-                # One long-lived VM shared by every player, so unlike the
-                # homewort pool there is no allocator and nothing to claim: it
-                # comes up with the machine and stays up.
+                # One long-lived VM serves every player, so unlike the homewort
+                # pool it has no allocator and nothing to claim: it comes up
+                # with the machine and stays up.
                 wantedBy = [ "multi-user.target" ];
                 after = [ "network.target" ];
 
                 environment = {
-                  # Versioned by the image it overlays. A plain restart reuses
-                  # the overlay, which is the point - players keep working
-                  # against store paths they built earlier. But a fixed
-                  # filename would also survive a *new* image, and qcow2 keeps
-                  # the old backing file in its header, so the guest would go
-                  # on booting the system it was first created against and no
-                  # redeploy of this service would ever reach it.
+                  # The overlay file name is versioned by the image it
+                  # overlays. A plain restart reuses the overlay, which is the
+                  # point: players keep working against store paths they built
+                  # earlier. But a fixed filename would also survive a *new*
+                  # image, and qcow2 keeps the old backing file in its header,
+                  # so the guest would go on booting the system it was first
+                  # created against and no redeploy of this service would ever
+                  # reach it.
                   NIX_DISK_IMAGE = "${stateDir}/disk-${
                     builtins.substring 0 12 (baseNameOf vm)
                   }.qcow2";
@@ -242,16 +243,16 @@
                   QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${
                     toString settings.internalPort
                   }-:${toString settings.port}";
-                  # Root-only sysfs blob inside the guest. Keeping the flag out
-                  # of the guest's NixOS configuration is the point: this app
-                  # serves /nix/store over HTTP, so a flag in
+                  # The flag reaches the guest as a root-only sysfs blob and
+                  # stays out of the guest's NixOS configuration on purpose:
+                  # this app serves /nix/store over HTTP, so a flag in
                   # `environment.etc` would be handed out with one request.
                   QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${flag.path}";
                 };
 
                 serviceConfig = {
                   ExecStart = "${vm}/bin/run-baas-vm";
-                  # Deliberately no wipe of the overlay on start, which is the
+                  # The overlay is deliberately not wiped on start, which is the
                   # other difference to the homewort pool: players keep working
                   # against store paths they built earlier, so a restart after
                   # a crash has to find them again. A new image gets a new
@@ -307,15 +308,17 @@
                   limit_req_zone $binary_remote_addr zone=baas_build:4m rate=12r/m;
                 '';
 
-                # Keyed "baas", not by the host name: nginx vhosts are keyed by
-                # attribute, and CTFd already owns a `${proxy.hostName}` vhost
-                # on 443. Same name, different port, so it needs its own key
-                # and an explicit `serverName`.
+                # The vhost is keyed "baas", not by the host name: nginx vhosts
+                # are keyed by attribute, and CTFd already owns a
+                # `${proxy.hostName}` vhost on 443. This one has the same name
+                # on a different port, so it needs its own key and an explicit
+                # `serverName`.
                 virtualHosts.baas = {
                   serverName = proxy.hostName;
-                  # Plain HTTP, no ACME: this vhost is not on 80, and HTTP-01
-                  # only ever answers there. `default` so the vhost also serves
-                  # a request that arrives with a bare IP in `Host`.
+                  # It serves plain HTTP without ACME: this vhost is not on 80,
+                  # and HTTP-01 only ever answers there. It is `default` so that
+                  # it also serves a request that arrives with a bare IP in
+                  # `Host`.
                   default = true;
                   listen = [
                     {
@@ -370,8 +373,9 @@
 
               services.anubis.instances.baas = lib.mkIf proxy.anubis.enable {
                 settings = {
-                  # Subrequest-auth mode: nginx proxies to the app, Anubis only
-                  # answers the auth_request check, so no upstream target here.
+                  # In subrequest-auth mode nginx proxies to the app and Anubis
+                  # only answers the auth_request check, so it needs no
+                  # upstream target here.
                   TARGET = " ";
                   BIND = "127.0.0.1:${toString proxy.anubis.port}";
                   BIND_NETWORK = "tcp";

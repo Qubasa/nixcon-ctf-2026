@@ -1,6 +1,6 @@
-# The challenge guest: nothing but the baas app and the Nix daemon whose store
-# players build into. It is the containment boundary, so it holds no secret
-# beyond the flag it is handed and has no way out - see ./README.md.
+# The challenge guest runs nothing but the baas app and the Nix daemon whose
+# store players build into. It is the containment boundary, so it holds no
+# secret beyond the flag it is handed and has no way out (see ./README.md).
 { port, src-baas }:
 {
   config,
@@ -18,7 +18,7 @@ let
 
   stateDir = "/var/lib/baas";
 
-  # Root-only sysfs blob, handed over by the hypervisor's fw_cfg device. The
+  # A root-only sysfs blob that the hypervisor's fw_cfg device hands over. The
   # flag never goes through a NixOS option: `environment.etc` and friends would
   # put it in /nix/store, which this app serves over HTTP by design.
   flagBlob = "/sys/firmware/qemu_fw_cfg/by_name/opt/ctf/flag/raw";
@@ -38,15 +38,16 @@ let
         flag='fakectf{no_flag_was_handed_to_this_vm}'
       fi
 
-      # Character for character what index.js wraps `code` in, so the path
-      # rooted here and the path the app hands out are the same one. A 45
-      # character flag leaves `code` at 73, far below the app's limit of 1024.
+      # The expression matches what index.js wraps `code` in character for
+      # character, so the path built here and the path the app hands out are
+      # the same one. A 45 character flag leaves `code` at 73, far below the
+      # app's limit of 1024.
       code="{}: pkgs.writeText \"flag\" \"$flag\""
       expr="let pkgs = import <nixpkgs> {}; in pkgs.callPackage ($code) {}"
 
-      # No out-link. `/path/:path` resolves any path the caller names and
-      # serves it as long as the *resolved* path is under /nix/store, so any
-      # symlink to the flag's output is a one-request solve: a root at
+      # The build takes no out-link. `/path/:path` resolves any path the caller
+      # names and serves it as long as the *resolved* path is under /nix/store,
+      # so any symlink to the flag's output is a one-request solve: a root at
       # `${stateDir}/flag-result` is guessable, and so is the `./result` the
       # app's own nix-build drops in its working directory. Nothing in this
       # guest ever garbage collects (`nix.gc.automatic` is off below), so the
@@ -145,18 +146,20 @@ in
     sandbox = true;
   };
 
-  # Load bearing, not a default worth inheriting: the flag's store path is
-  # deliberately unrooted, because every symlink to it is a one-request solve
-  # through `/path/:path`. A collection would take the flag with it.
+  # Disabling GC is load bearing, not a default worth inheriting: the flag's
+  # store path is deliberately unrooted, because every symlink to it is a
+  # one-request solve through `/path/:path`. A collection would take the flag
+  # with it.
   nix.gc.automatic = false;
   nix.optimise.automatic = false;
 
   # The flag arrives through fw_cfg, whose sysfs interface needs the module.
   boot.kernelModules = [ "qemu_fw_cfg" ];
 
-  # Same values the VM variant sets on its own, spelled out so this module also
-  # evaluates as a plain system. The backing image is sized to the closure and
-  # nothing more, so the writable overlay is where player builds have to fit.
+  # These are the same values the VM variant sets on its own, spelled out so
+  # this module also evaluates as a plain system. The backing image is sized to
+  # the closure and nothing more, so the writable overlay is where player
+  # builds have to fit.
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
@@ -229,8 +232,8 @@ in
 
     serviceConfig = {
       ExecStart = "${app}/bin/baas";
-      # `+`: runs as root, because the fw_cfg blob the flag arrives in is
-      # readable by root only.
+      # The `+` prefix runs it as root, because the fw_cfg blob the flag
+      # arrives in is readable by root only.
       ExecStartPost = "+${lib.getExe bootstrap}";
       Restart = "on-failure";
       RestartSec = 5;
@@ -241,9 +244,9 @@ in
       StateDirectoryMode = "0750";
       # `nix-build` writes its out-link into the working directory.
       WorkingDirectory = stateDir;
-      # Load bearing, not hygiene: `ProtectSystem=strict` leaves /tmp
-      # read-only, and nix-build fails to create its temporary build directory
-      # without a private one.
+      # PrivateTmp is load bearing, not hygiene: `ProtectSystem=strict` leaves
+      # /tmp read-only, and nix-build fails to create its temporary build
+      # directory without a private one.
       PrivateTmp = true;
 
       NoNewPrivileges = true;
@@ -258,10 +261,10 @@ in
       ];
       RestrictSUIDSGID = true;
       LockPersonality = true;
-      # No `ReadWritePaths` for /nix/var/nix/daemon-socket: measured with this
-      # exact set on a transient unit, connect(2) to the daemon socket and a
-      # full `nix-build --out-link` both succeed under the read-only /nix that
-      # `ProtectSystem=strict` leaves behind.
+      # The unit needs no `ReadWritePaths` for /nix/var/nix/daemon-socket.
+      # Measured with this exact set on a transient unit, connect(2) to the
+      # daemon socket and a full `nix-build --out-link` both succeed under the
+      # read-only /nix that `ProtectSystem=strict` leaves behind.
     };
   };
 
