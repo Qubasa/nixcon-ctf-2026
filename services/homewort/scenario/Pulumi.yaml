@@ -3,10 +3,4 @@ description: Allocates one ephemeral homewort challenge VM per chall-manager ins
 runtime:
   name: go
   options:
-    # Do not remove this option. Without it chall-manager's OCI loader shells out
-    # to `go build` (pkg/services/oci/load.go compile()) inside the service unit,
-    # which runs with GOPROXY=off and no network, so resolving this module's
-    # dependencies would fail. The unit does have `go` on PATH, but only because
-    # pulumi-language-go insists on it even for a prebuilt binary. That
-    # toolchain cannot fetch anything.
     binary: ./main

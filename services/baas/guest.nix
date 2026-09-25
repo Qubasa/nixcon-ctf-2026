@@ -1,6 +1,3 @@
-# The challenge guest runs nothing but the baas app and the Nix daemon whose
-# store players build into. It is the containment boundary, so it holds no
-# secret beyond the flag it is handed and has no way out (see ./README.md).
 { port, src-baas }:
 {
   config,
@@ -11,16 +8,11 @@
 let
   app = pkgs.callPackage ./package.nix {
     inherit src-baas;
-    # The app shells out to bare `nix-build`, so the client on its PATH is the
-    # guest's own daemon package rather than whatever `pkgs.nix` happens to be.
     nix = config.nix.package;
   };
 
   stateDir = "/var/lib/baas";
 
-  # A root-only sysfs blob that the hypervisor's fw_cfg device hands over. The
-  # flag never goes through a NixOS option: `environment.etc` and friends would
-  # put it in /nix/store, which this app serves over HTTP by design.
   flagBlob = "/sys/firmware/qemu_fw_cfg/by_name/opt/ctf/flag/raw";
 
   bootstrap = pkgs.writeShellApplication {
@@ -86,14 +78,6 @@ let
     '';
   };
 
-  # Players build real derivations in here with no substituters and no egress,
-  # so a build can only use what the image already ships. `stdenv` and
-  # `stdenvNoCC` make every `mkDerivation`, `runCommand` and `writeText`
-  # buildable, which includes the flag itself. The `inputDerivation`s further
-  # down add those packages' sources and build-time closures, so a derivation
-  # that really compiles something works too. The tool list is an ordinary
-  # `buildInputs` line, kept generic on purpose: it is not tailored to any
-  # particular solution.
   buildSeeds =
     with pkgs;
     [
@@ -133,33 +117,18 @@ in
 {
   networking.hostName = "baas";
 
-  # slirp forwards exactly one port into this guest and the guest's own
-  # firewall would drop it.
   networking.firewall.allowedTCPPorts = [ port ];
 
   nix.settings = {
-    # No egress: fail fast on a path that is not in the image instead of
-    # hanging on an unreachable cache.
     substituters = [ ];
-    # Player builds are the challenge, and the sandbox is the only thing
-    # keeping them inside the store.
     sandbox = true;
   };
 
-  # Disabling GC is load bearing, not a default worth inheriting: the flag's
-  # store path is deliberately unrooted, because every symlink to it is a
-  # one-request solve through `/path/:path`. A collection would take the flag
-  # with it.
   nix.gc.automatic = false;
   nix.optimise.automatic = false;
 
-  # The flag arrives through fw_cfg, whose sysfs interface needs the module.
   boot.kernelModules = [ "qemu_fw_cfg" ];
 
-  # These are the same values the VM variant sets on its own, spelled out so
-  # this module also evaluates as a plain system. The backing image is sized to
-  # the closure and nothing more, so the writable overlay is where player
-  # builds have to fit.
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
@@ -168,10 +137,6 @@ in
   boot.growPartition = true;
   boot.loader.grub.device = "/dev/vda";
 
-  # growpart enlarges the partition only after the root filesystem is mounted,
-  # so the stage-1 resize from `autoResize` misses it on the first boot. Extend
-  # the mounted filesystem online instead. Later boots are covered by
-  # `autoResize` alone.
   systemd.services.grow-rootfs = {
     description = "Grow the root filesystem to the overlay disk size";
     wantedBy = [ "multi-user.target" ];
@@ -203,9 +168,6 @@ in
 
   systemd.tmpfiles.rules = [
     "d ${stateDir} 0750 baas baas -"
-    # Express resolves its view directory relative to the working directory,
-    # and the working directory has to be writable because `nix-build` drops a
-    # `./result` symlink into it on every request.
     "L+ ${stateDir}/views - - - - ${app}/libexec/baas/views"
   ];
 
@@ -220,20 +182,12 @@ in
 
     environment = {
       PORT = toString port;
-      # index.js evaluates `import <nixpkgs> {}` with `restrict-eval` on, so
-      # the search path has to be set here: NixOS exports its own default
-      # through `environment.sessionVariables`, which no system unit inherits.
-      # A store path also keeps evaluation offline, unlike the `flake:nixpkgs`
-      # indirection that default uses.
       NIX_PATH = "nixpkgs=${pkgs.path}";
-      # The evaluator writes ~/.cache/nix.
       HOME = stateDir;
     };
 
     serviceConfig = {
       ExecStart = "${app}/bin/baas";
-      # The `+` prefix runs it as root, because the fw_cfg blob the flag
-      # arrives in is readable by root only.
       ExecStartPost = "+${lib.getExe bootstrap}";
       Restart = "on-failure";
       RestartSec = 5;
@@ -242,11 +196,7 @@ in
       Group = "baas";
       StateDirectory = "baas";
       StateDirectoryMode = "0750";
-      # `nix-build` writes its out-link into the working directory.
       WorkingDirectory = stateDir;
-      # PrivateTmp is load bearing, not hygiene: `ProtectSystem=strict` leaves
-      # /tmp read-only, and nix-build fails to create its temporary build
-      # directory without a private one.
       PrivateTmp = true;
 
       NoNewPrivileges = true;
@@ -261,17 +211,11 @@ in
       ];
       RestrictSUIDSGID = true;
       LockPersonality = true;
-      # The unit needs no `ReadWritePaths` for /nix/var/nix/daemon-socket.
-      # Measured with this exact set on a transient unit, connect(2) to the
-      # daemon socket and a full `nix-build --out-link` both succeed under the
-      # read-only /nix that `ProtectSystem=strict` leaves behind.
     };
   };
 
   system.extraDependencies = buildSeeds;
 
-  # Nobody logs in here and the image is copied to the server on every deploy,
-  # so the man pages and the options.json build are pure weight.
   documentation.enable = false;
 
   system.stateVersion = "26.05";

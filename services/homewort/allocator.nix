@@ -1,15 +1,7 @@
-# The seam between chall-manager's Pulumi scenario and the VM host.
-#
-# The scenario has no idea what a systemd unit or a qcow2 overlay is. It runs
-# one command per lifecycle event and parses one line of JSON. Everything that
-# knows about slots, flags, and QEMU lives here, so the scenario stays a thin
-# `pulumi-command` wrapper and this file stays testable without KVM.
 {
   pkgs,
   lib,
 
-  # Resolved knobs, all baked into the script: the allocator has no config file
-  # and no environment overrides, so what the module deployed is what runs.
   maxSlots,
   basePort,
   internalBasePort,
@@ -20,19 +12,12 @@
   loginUser ? "friend",
 
   stateDir ? "/var/lib/homewort-slots",
-  # `user:group` given to the flag files, or null to leave ownership alone
-  # (the test runs unprivileged and cannot chown).
   flagOwner ? "homewort:homewort",
 
-  # Injected so the test can stub them out.
   systemctl ? "${pkgs.systemd}/bin/systemctl",
   readyProbe ? null,
 }:
 let
-  # A completed connect() proves nothing: QEMU binds the forwarded port the
-  # moment the VM process starts and slirp only tears the connection down once
-  # it finds nothing listening in the guest. The SSH banner is the first byte
-  # that actually means "the guest booted".
   sshProbe = pkgs.writeShellApplication {
     name = "homewort-ssh-probe";
     text = ''
@@ -55,7 +40,7 @@ pkgs.writeShellApplication {
     pkgs.coreutils
     pkgs.jq
     pkgs.openssl
-    pkgs.util-linux # flock
+    pkgs.util-linux 
   ];
 
   text = ''

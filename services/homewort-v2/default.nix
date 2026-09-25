@@ -142,16 +142,9 @@
 
             slots = lib.range 1 settings.maxSlots;
 
-            # Every identifier of this pool derives from here, so it never
-            # collides with the `homewort` pool on the same machine: units,
-            # state directories, the user, and the allocator's stop/start
-            # targets all carry it.
             name = "homewort-v2";
             unitPrefix = "${name}-vm";
 
-            # Where the allocator keeps its slot bookkeeping. `<n>/identity`
-            # marks the slot as claimed, `<n>/flag` is what fw_cfg hands to
-            # that slot's guest.
             slotDir = "/var/lib/${name}-slots";
 
             publicHost =
@@ -167,18 +160,12 @@
                 readyTimeout
                 ;
               inherit publicHost unitPrefix;
-              # A non-secret var, already materialised at eval time: it is part
-              # of the challenge description, so it may sit in the store.
               password = login.password.value;
               stateDir = slotDir;
               flagOwner = "${name}:${name}";
               systemctl = "${config.systemd.package}/bin/systemctl";
             };
 
-            # The scenario package puts a loose `Pulumi.yaml` and a prebuilt
-            # `main` at the derivation root, because chall-manager loads a
-            # scenario as one OCI layer per file and stats those two names. A
-            # tarball layer would not load.
             scenario = pkgs.callPackage ./scenario/package.nix { };
             scenarioRef = "127.0.0.1:5000/${name}:${scenario.version}";
 
@@ -217,11 +204,6 @@
               '';
             };
 
-            # `mus-vm` is the challenge's own bootable variant: same machine as
-            # `mus`, plus the closure an offline `sudo rebuildHome-friend` needs
-            # already in the guest store. The bootloader lives in the image so a
-            # player's `nixos-rebuild switch` succeeds. The host Nix store is not
-            # shared into the guest, and the guest has no egress.
             vm =
               (inputs.homewort-v2.nixosConfigurations.mus-vm.extendModules {
                 modules = [
@@ -234,9 +216,6 @@
                         inherit (settings) memorySize cores diskSize;
                       };
 
-                      # The login handed to players of this deployment. The
-                      # challenge repo's own `friend` password is a default for
-                      # running it locally, not for a public box.
                       users.users.friend.password = lib.mkForce null;
                       users.users.friend.hashedPassword = lib.mkForce login.password-hash.value;
                     }
@@ -254,39 +233,19 @@
                 in
                 {
                   description = "homewort-v2 challenge VM in slot ${toString n} (ssh on port ${toString port})";
-                  # Nothing pulls this in: `homewort-v2-instance create` starts
-                  # it when a team claims the slot and `destroy` stops it again.
                   wantedBy = [ ];
                   after = [ "network.target" ];
 
                   environment = {
                     NIX_DISK_IMAGE = "/var/lib/${stateDir}/disk.qcow2";
-                    # Loopback only: slirp rewrites a loopback client to its own
-                    # host alias, which `restrict=on` lets the guest answer.
-                    # Public traffic arrives through the -ssh proxy unit.
                     QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString internalPort}-:22";
-                    # A root-only sysfs blob inside the guest, which the ctf-flag
-                    # service installs as /etc/flag. The allocator writes
-                    # this file before it starts the unit, so each claim of the
-                    # slot gets a different flag.
                     QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${slotDir}/${toString n}/flag";
                   };
 
                   serviceConfig = {
-                    # The guest's hostname is still `mus`, so the runner script
-                    # the VM variant builds keeps that name.
                     ExecStart = "${vm}/bin/run-mus-vm";
-                    # Players get root in there, so every start must begin from
-                    # the pristine backing image.
                     ExecStartPre = "${pkgs.coreutils}/bin/rm -f /var/lib/${stateDir}/disk.qcow2";
-                    # Reclaims the disk the moment the slot is released, and
-                    # covers a crash or a manual stop too. The allocator
-                    # deliberately does not do this itself: it runs inside
-                    # chall-manager's mount namespace, where /var/lib is
-                    # read-only apart from the slot directory.
                     ExecStopPost = "${pkgs.coreutils}/bin/rm -f /var/lib/${stateDir}/disk.qcow2";
-                    # A player who bricks or powers off their box gets it back,
-                    # with the same flag: the slot is still theirs.
                     Restart = "always";
                     RestartSec = 5;
 
@@ -313,11 +272,6 @@
                 };
             };
 
-            # QEMU's slirp keeps a non-loopback client's address inside the
-            # guest network, and `restrict=on` then drops the guest's replies to
-            # it: the player's TCP handshake completes against slirp and the SSH
-            # banner never arrives. The public port therefore belongs to a host
-            # process that talks to the guest over loopback.
             sshProxySocket = n: {
               name = "${unitPrefix}-${toString n}-ssh";
               value = {
@@ -364,10 +318,6 @@
             };
             users.groups.${name} = { };
 
-            # The login players are given. It is public on purpose: it goes into
-            # the challenge description. It has its own generator, not
-            # `homewort`'s, because the two pools are separate challenges and
-            # must not share a password.
             clan.core.vars.generators.homewort-v2-login = {
               files.password.secret = false;
               files.password-hash.secret = false;
@@ -386,9 +336,6 @@
 
             environment.systemPackages = [ allocator ];
 
-            # The slot directory is world-traversable so the VM services, which
-            # run as `homewort-v2` under `ProtectSystem=strict`, can read their
-            # own `<n>/flag`.
             systemd.tmpfiles.rules = [ "d ${slotDir} 0755 root root -" ];
 
             security.sudo.extraRules = lib.optionals (settings.allowUser != null) [
@@ -396,10 +343,6 @@
                 users = [ settings.allowUser ];
                 commands = [
                   {
-                    # The profile path, not the allocator's store path: the
-                    # Pulumi scenario hardcodes this command line and the
-                    # profile path is the only one that survives a rebuild
-                    # changing the allocator's hash.
                     command = "/run/current-system/sw/bin/${name}-instance";
                     options = [ "NOPASSWD" ];
                   }
@@ -413,9 +356,6 @@
               lib.listToAttrs (map vmService slots)
               // lib.listToAttrs (map sshProxyService slots)
               // {
-                # chall-manager pulls the scenario from the host's registry every
-                # time it deploys an instance, so the artifact has to be there
-                # before the first team clicks "deploy".
                 homewort-v2-scenario-push = {
                   description = "Push the homewort-v2 Pulumi scenario to the local chall-manager registry";
                   after = [ "chall-manager-registry.service" ];
@@ -424,13 +364,8 @@
                   serviceConfig = {
                     Type = "oneshot";
                     RemainAfterExit = true;
-                    # Layer titles are paths relative to the working directory,
-                    # and chall-manager stats `Pulumi.yaml` and `main` at the
-                    # artifact root.
                     WorkingDirectory = "${scenario}";
                     ExecStart = "${pushScenario}/bin/${name}-scenario-push";
-                    # oras looks for a docker config under $HOME. The store path
-                    # it works in is read-only, so give it the private tmpdir.
                     Environment = [ "HOME=%T" ];
                     PrivateTmp = true;
                     DynamicUser = true;

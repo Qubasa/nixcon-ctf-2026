@@ -1,11 +1,5 @@
-# Exercises the allocator's CLI contract without KVM, root or a network: the
-# only things this test cannot check are the parts it stubs out (systemctl and
-# the SSH readiness probe), which is exactly the seam `allocator.nix` exposes
-# for that reason.
 { pkgs, lib }:
 let
-  # Both stubs append their argv to $HOMEWORT_V2_TEST_LOG so the test can assert
-  # which units the allocator touched.
   systemctlStub = pkgs.writeShellScript "systemctl-stub" ''
     printf '%s\n' "$*" >> "$HOMEWORT_V2_TEST_LOG"
   '';
@@ -14,18 +8,11 @@ let
     printf 'probe %s\n' "$*" >> "$HOMEWORT_V2_TEST_LOG"
   '';
 
-  # A guest that never presents a banner: `create` must give the slot back
-  # instead of leaking it, which is the difference between one lost deploy and
-  # a pool that silently shrinks over an event.
   deadProbeStub = pkgs.writeShellScript "dead-probe-stub" ''
     printf 'deadprobe %s\n' "$*" >> "$HOMEWORT_V2_TEST_LOG"
     exit 1
   '';
 
-  # The allocator never chdirs, so relative state paths resolve against the
-  # builder's cwd (a private, unique directory), which keeps the test off any
-  # shared absolute path without needing an escape hatch in the allocator.
-  # Production always passes absolute paths.
   allocator = import ./allocator.nix {
     inherit pkgs lib;
     maxSlots = 2;
@@ -42,9 +29,6 @@ let
     readyProbe = "${readyProbeStub}";
   };
 
-  # Builds the same allocator with its own state tree, a probe that never
-  # succeeds, and a second `unitPrefix`. The unit name has to be a template of
-  # that argument, not a constant, or a fork of this pool stops the wrong VMs.
   allocatorDeadGuest = import ./allocator.nix {
     inherit pkgs lib;
     maxSlots = 1;

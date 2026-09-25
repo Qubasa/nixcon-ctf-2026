@@ -90,10 +90,6 @@
           {
             imports = [ inputs.nixbot.nixosModules.nixbot ];
 
-            # Operator-prompted Gitea secrets: the bot user's access token
-            # (write:repository + read:user) and the OAuth2 app client secret.
-            # nixbot reads both through systemd LoadCredential as root at
-            # unit start, so the raw clan-var paths need no owner juggling.
             clan.core.vars.generators.nixbot = {
               prompts.gitea-token = {
                 description = "Gitea access token for the nixbot bot user (write:repository + read:user)";
@@ -116,8 +112,6 @@
             clan.core.postgresql.databases.nixbot.create.options.OWNER = "nixbot";
             clan.core.postgresql.databases.nixbot.restore.stopOnRestore = [ "nixbot" ];
 
-            # Private clones and build logs. The nix store itself is
-            # rebuildable and deliberately not backed up.
             clan.core.state.nixbot.folders = [ "/var/lib/nixbot" ];
 
             networking.firewall.allowedTCPPorts = [
@@ -135,8 +129,6 @@
               buildSystems = settings.buildSystems;
               evalWorkerCount = lib.mkIf (settings.evalWorkerCount != null) settings.evalWorkerCount;
 
-              # Don't re-evaluate and re-build derivations already known to
-              # fail until an explicit rerun.
               cacheFailedBuilds = true;
 
               database.createLocally = false;
@@ -151,11 +143,9 @@
                 topic = settings.topic;
               };
 
-              nginx.enableACME = true; # HTTP-01
+              nginx.enableACME = true; 
             };
 
-            # nixbot only orders after postgresql.target when it provisions the
-            # database itself. With the clan Postgres we wire the ordering here.
             systemd.services.nixbot = {
               after = [ "postgresql.target" ];
               requires = [ "postgresql.target" ];

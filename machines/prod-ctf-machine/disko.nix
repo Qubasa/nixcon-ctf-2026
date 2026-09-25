@@ -1,10 +1,5 @@
 # ---
-# schema = "ext4-single-disk"
-# [placeholders]
-# mainDisk = "/dev/disk/by-id/nvme-SAMSUNG_MZQL2960HCJR-00A07_S64FNE0R505485" 
 # ---
-# This file was automatically generated!
-# CHANGING this configuration requires wiping and reinstalling the machine
 {
   boot.loader.grub = {
     efiInstallAsRemovable = true;
@@ -22,7 +17,7 @@
           partitions = {
             "boot" = {
               size = "1M";
-              type = "EF02"; # for grub MBR
+              type = "EF02"; 
               priority = 1;
             };
             ESP = {

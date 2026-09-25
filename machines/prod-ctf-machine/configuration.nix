@@ -3,5 +3,4 @@
 
   ];
 
-  # New machine!
 }

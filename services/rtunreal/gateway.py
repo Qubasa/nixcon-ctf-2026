@@ -35,9 +35,6 @@ class Config:
     tarball: Path
     max_patch: int
     timeout: int
-    # Where players reach this desk. nginx forwards `Host` without the port,
-    # and this vhost does not live on a default one, so the URL in the copy
-    # and paste instructions has to be told rather than guessed.
     public_url: str
 
 
@@ -125,9 +122,6 @@ def render_result(verdict: dict[str, Any], flag: str | None) -> str:
     """Turn the builder's JSON into the part of the page below the form."""
     parts = ["<h2>Result</h2>"]
 
-    # Anything that never reached the checks (a patch that does not apply, a
-    # submission the runner refused, or a builder that did not answer) carries
-    # its own message.
     if verdict.get("stage") != "checks":
         message = str(verdict.get("message") or "The submission was not graded.")
         parts.append(f'<p class="fail">{html.escape(message)}</p>')
@@ -287,8 +281,6 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     cfg = config_from_env()
     Handler.cfg = cfg
-    # Fail at start rather than on the one request that matters: an unreadable
-    # flag file means the deploy is wrong, not that the player is.
     cfg.flag_file.read_text()
     server = ThreadingHTTPServer(("127.0.0.1", cfg.port), Handler)
     print(f"rtunreal-gateway: listening on 127.0.0.1:{cfg.port}", flush=True)

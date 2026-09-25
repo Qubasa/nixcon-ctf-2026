@@ -23,19 +23,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-# Per-check log excerpt handed back to the player. A failing `nix build` prints
-# the whole builder output, and t001 alone can echo a few kilobytes of XML.
 LOG_TAIL = 8192
 
-# The two files a submission may not decide, restored from the pristine tree
-# after the patch applies: flake.nix defines the checks the submission is
-# graded against, and flake.lock pins the nixpkgs the image was seeded for.
 PRISTINE_FILES = ("flake.nix", "flake.lock")
 
-# `flake.nix` calls `callPackage ./input-derivation.nix`, so a submission
-# without it cannot even evaluate. It is also the one file a player is likely
-# to lose on the way here: the challenge's own .gitignore used to list it, and
-# `git diff` says nothing about a file it was told to ignore.
 REQUIRED_FILE = "input-derivation.nix"
 
 
@@ -166,8 +157,6 @@ def apply_patch(cfg: Config, work: Path, patch: bytes) -> tuple[bool, str]:
         log += f"$ {' '.join(argv[:3])}\n{out}\n"
         if code == 0:
             return True, log
-        # A failed attempt still leaves rejected hunks and half-written files
-        # behind, so the next one starts from the pristine tree again.
         shutil.rmtree(work)
         copy_writable(cfg.source, work)
     return False, log
@@ -200,8 +189,6 @@ def run_check(cfg: Config, work: Path, name: str, deadline: float) -> dict[str, 
             "2",
             "--cores",
             "2",
-            # Nix's own watchdog, so a builder stuck in a loop dies before the
-            # subprocess timeout takes the whole submission with it.
             "--timeout",
             str(timeout),
             f"path:{work}#checks.{cfg.system}.{name}",
@@ -260,8 +247,6 @@ class Handler(BaseHTTPRequestHandler):
 
     cfg: Config
     checks: tuple[str, ...]
-    # One build at a time. Two concurrent `nix build`s would fight over the
-    # guest's two cores and both hit their timeout instead of one finishing.
     gate = threading.BoundedSemaphore(1)
 
     protocol_version = "HTTP/1.1"

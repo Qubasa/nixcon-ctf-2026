@@ -143,9 +143,6 @@
 
             gateway = (pkgs.callPackage ./package.nix { }).gateway;
 
-            # What players download: the same derivation the guest grades
-            # against, so the desk cannot hand out a tree that differs from
-            # the one a submission is applied to.
             published = pkgs.callPackage ./source.nix { src = inputs.rtunreal; };
 
             tarball = pkgs.runCommand "rtunreal-challenge.tar.gz" { } ''
@@ -180,10 +177,6 @@
               };
               users.groups.rtunreal = { };
 
-              # QEMU runs as nobody the flag file lets in. The guest executes
-              # player-written Nix, so a hypervisor escape is the failure this
-              # service is built around: landing as `rtunreal` would hand the
-              # escapee a readable flag and make the VM pointless.
               users.users.rtunreal-vm = {
                 isSystemUser = true;
                 group = "rtunreal-vm";
@@ -191,10 +184,6 @@
               };
               users.groups.rtunreal-vm = { };
 
-              # The flag is the one secret of this challenge and the reason the
-              # grading runs in a VM. It stays in the gateway, which evaluates
-              # no player input, while everything that touches player input runs
-              # in a guest that has never seen it.
               clan.core.vars.generators.rtunreal = {
                 files.flag = {
                   secret = true;
@@ -218,16 +207,7 @@
                 after = [ "network.target" ];
 
                 environment = {
-                  # The overlay is versioned by the image it overlays: a plain
-                  # restart reuses the overlay, so the guest keeps its eval
-                  # cache and its already-built submissions, while a *new* image
-                  # gets a new overlay. A fixed filename would keep booting the
-                  # system the overlay was first created against, since qcow2 pins
-                  # its backing file in the header.
                   NIX_DISK_IMAGE = "${stateDir}/disk-${builtins.substring 0 12 (baseNameOf vm)}.qcow2";
-                  # The forward itself is `virtualisation.forwardPorts` in
-                  # vm.nix, not a `QEMU_NET_OPTS` line here: two hostfwd rules
-                  # for the same host port make QEMU fail to bind at boot.
                 };
 
                 serviceConfig = {
@@ -272,14 +252,7 @@
                   RTUNREAL_FLAG_FILE = flag.path;
                   RTUNREAL_TARBALL = "${tarball}";
                   RTUNREAL_MAX_PATCH = toString settings.maxPatchBytes;
-                  # nginx forwards `Host` without the port and this vhost is
-                  # not on a default one, so the desk is told its own URL
-                  # rather than reconstructing a wrong one for the copy and
-                  # paste instructions.
                   RTUNREAL_PUBLIC_URL = lib.optionalString settings.nginx.enable "http://${settings.nginx.hostName}:${toString settings.publicPort}";
-                  # The desk has to outlast the runner's own budget, or a
-                  # submission that ran its full course would come back as a
-                  # gateway error instead of a verdict.
                   RTUNREAL_TIMEOUT = toString (settings.totalTimeout + 120);
                 };
 
@@ -322,23 +295,12 @@
                 recommendedOptimisation = true;
                 recommendedGzipSettings = true;
 
-                # A rate-limit zone has to live in the http block. One
-                # submission occupies the guest for as long as it builds, and
-                # the runner serialises them anyway, so this only keeps a
-                # loop from filling the queue.
                 appendHttpConfig = ''
                   limit_req_zone $binary_remote_addr zone=rtunreal_submit:4m rate=6r/m;
                 '';
 
-                # Keyed "rtunreal", not by the host name: nginx vhosts are
-                # keyed by attribute and CTFd already owns a
-                # `${settings.nginx.hostName}` vhost on 443.
                 virtualHosts.rtunreal = {
                   serverName = settings.nginx.hostName;
-                  # The vhost uses plain HTTP and no ACME because it is not on
-                  # 80, and HTTP-01 only ever answers there. It is `default` so
-                  # that it also serves a request that arrives with a bare IP in
-                  # `Host`.
                   default = true;
                   listen = [
                     {

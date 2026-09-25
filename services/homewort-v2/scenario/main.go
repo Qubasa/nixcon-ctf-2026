@@ -50,9 +50,6 @@ func main() {
 			allocator = defaultAllocator
 		}
 
-		// local.Command runs its scripts through a shell, so the identity is
-		// quoted even though the allocator itself rejects anything outside
-		// [a-z0-9]{1,64}.
 		id := shellQuote(identity)
 		instance, err := local.NewCommand(ctx, "instance", &local.CommandArgs{
 			Create: pulumi.String(fmt.Sprintf("%s create --identity %s", allocator, id)),
@@ -62,10 +59,6 @@ func main() {
 			return err
 		}
 
-		// Parse once, because both exports are projections of the same
-		// allocation. An unparseable or incomplete payload fails the whole
-		// deployment, which CTFd surfaces to the player, rather than handing out
-		// an empty flag.
 		alloc := instance.Stdout.ApplyT(func(stdout string) (allocation, error) {
 			var a allocation
 			if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &a); err != nil {

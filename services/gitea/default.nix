@@ -102,8 +102,6 @@
                 '';
               };
 
-              # Registration is off, so the first admin has to be created with
-              # the CLI on the machine.
               environment.systemPackages = [ config.services.gitea.package ];
 
               services.gitea = {
@@ -150,8 +148,6 @@
                     "/" = {
                       proxyPass = "http://localhost:${toString settings.port}";
                       proxyWebsockets = true;
-                      # Gate every request on an Anubis proof-of-work challenge.
-                      # https://anubis.techaro.lol/docs/admin/configuration/subrequest-auth
                       extraConfig = lib.optionalString proxy.anubis.enable ''
                         auth_request /.within.website/x/cmd/anubis/api/check;
                         error_page 401 = @redirectToAnubis;
@@ -180,13 +176,10 @@
 
               services.anubis.instances.gitea = lib.mkIf proxy.anubis.enable {
                 settings = {
-                  # Subrequest-auth mode: nginx proxies to Gitea and Anubis only
-                  # answers the auth_request check, so it needs no upstream target.
                   TARGET = " ";
                   BIND = "127.0.0.1:${toString proxy.anubis.port}";
                   BIND_NETWORK = "tcp";
                   OG_PASSTHROUGH = true;
-                  # https://anubis.techaro.lol/docs/admin/configuration/redirect-domains
                   REDIRECT_DOMAINS = settings.hostName;
                 };
                 policy = {
@@ -194,7 +187,6 @@
                     CHALLENGE = 200;
                     DENY = 403;
                   };
-                  # https://github.com/TecharoHQ/anubis/blob/main/data/apps/gitea-rss-feeds.yaml
                   extraBots = [
                     { import = "(data)/apps/gitea-rss-feeds.yaml"; }
                   ];

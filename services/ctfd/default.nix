@@ -165,13 +165,6 @@
             proxy = settings.nginx;
             cm = settings.challManager;
             cmNetworkUnit = "docker-network-${cm.network}.service";
-            # Upstream's `challenge_visible` decorator only looks at a
-            # challenge's `state`, so a player can POST an instance of a
-            # challenge that CTFd core hides behind unsolved prerequisites. The
-            # patch teaches the decorator the same requirements check core
-            # applies. Delete ./prerequisite-gate.patch and this binding once
-            # ctfd-chall-manager enforces requirements itself: the patch stops
-            # applying and the build fails loudly when that lands.
             challManagerSrc = pkgs.applyPatches {
               name = "ctfd-chall-manager-prereq-gate";
               src = inputs.ctfd-chall-manager;
@@ -180,7 +173,6 @@
           in
           lib.mkMerge [
           {
-            # Force docker: internal-network name resolution does not work with podman.
             virtualisation.oci-containers.backend = "docker";
 
             clan.core.vars.generators.ctfd = {
@@ -214,18 +206,11 @@
               "d ${settings.folder}/redis 0755 999 999 - -"
             ];
 
-            # Create the internal network before the database container starts.
-            # Because 'ctfd' depends on 'ctfd-db', this covers all three containers.
             systemd.services."${backend}-ctfd-db".preStart = ''
               ${backendBin} network inspect ctfd_internal ||
               ${backendBin} network create --internal ctfd_internal
             '';
 
-            # The internal network has no outbound access, so attach ctfd to the
-            # bridge network once it is up. It also has no gateway at all
-            # (--internal), which is why the challmgr network is a second
-            # attachment rather than a route: chall-manager runs on the host and
-            # is only reachable through that network's gateway address.
             systemd.services."${backend}-ctfd" = {
               after = [ cmNetworkUnit ];
               wants = [ cmNetworkUnit ];
@@ -245,10 +230,6 @@
 
             virtualisation.oci-containers.containers = {
               ctfd-db = {
-                # Digest-pinned like CTFd itself: `pull = "always"` on a
-                # floating tag makes every container restart depend on Docker
-                # Hub being reachable, which is the last thing that should be
-                # able to take the scoreboard down mid-event.
                 image = "mariadb:10.11@sha256:8020e05c4c498d06c87f0a1db010eb79bd6f8fb30e9b763d4690c34ce1e61008";
                 pull = "missing";
                 environment = {
@@ -282,9 +263,6 @@
               };
 
               ctfd = {
-                # Pinned by digest: ctfd-chall-manager v0.10.1 is CI-tested
-                # against exactly this build, and a floating tag could swap CTFd
-                # out from under the plugin on any mid-event container restart.
                 image = "ctfd/ctfd:3.8.7@sha256:284f1f06c5464108c4eaaea8a28934cb1e81d491e3f0fe60f3d686cf38593e41";
                 pull = "missing";
                 environment = {
@@ -295,26 +273,16 @@
                   REVERSE_PROXY = "true";
                   ACCESS_LOG = "-";
                   ERROR_LOG = "-";
-                  # The plugin tree lives in the read-only nix store.
                   PYTHONDONTWRITEBYTECODE = "1";
-                  # These three seed CTFd's config table on the very first plugin
-                  # load only (guarded by the `chall-manager:setup` config key).
-                  # Afterwards they are ignored and the values are owned by the
-                  # CTFd admin UI under Plugins > chall-manager.
                   PLUGIN_SETTINGS_CM_API_URL = cm.apiUrl;
                   PLUGIN_SETTINGS_CM_API_TIMEOUT = toString cm.apiTimeout;
                   PLUGIN_SETTINGS_CM_MANA_TOTAL = toString cm.manaTotal;
-                  # This one is re-read on every start, unlike the three above.
                   PLUGIN_SETTINGS_CM_UI_HIDE_INSTANCES_PANEL = lib.boolToString cm.hideInstancesPanel;
                 };
                 environmentFiles = [ secrets."ctfd.env".path ];
                 volumes = [
                   "${settings.folder}/uploads:/var/uploads"
                   "${settings.folder}/logs:/var/log/CTFd"
-                  # The directory name is load-bearing: the plugin uses absolute
-                  # `CTFd.plugins.ctfd_chall_manager.*` imports and derives both
-                  # its asset endpoint and its migration path from the
-                  # directory's basename, so it must be exactly this.
                   "${challManagerSrc}:/opt/CTFd/CTFd/plugins/ctfd_chall_manager:ro"
                 ];
                 ports = [ "${settings.address}:${toString settings.port}:8000" ];
@@ -347,9 +315,6 @@
               recommendedGzipSettings = true;
 
               virtualHosts =
-                # Everything that is not the canonical name answers with a
-                # permanent redirect, so cookies, CSRF origin checks and the
-                # Anubis challenge only ever see one host.
                 lib.genAttrs proxy.redirectHostNames (_: {
                   forceSSL = true;
                   enableACME = true;
@@ -364,8 +329,6 @@
                       "/" = {
                         proxyPass = "http://${settings.address}:${toString settings.port}";
                         proxyWebsockets = true;
-                        # Gate every request on an Anubis proof-of-work challenge.
-                        # https://anubis.techaro.lol/docs/admin/configuration/subrequest-auth
                         extraConfig = lib.optionalString proxy.anubis.enable ''
                           auth_request /.within.website/x/cmd/anubis/api/check;
                           error_page 401 = @redirectToAnubis;
@@ -393,8 +356,6 @@
 
             services.anubis.instances.ctfd = lib.mkIf proxy.anubis.enable {
               settings = {
-                # Subrequest-auth mode: nginx proxies to CTFd and Anubis only
-                # answers the auth_request check, so it needs no upstream target.
                 TARGET = " ";
                 BIND = "127.0.0.1:${toString proxy.anubis.port}";
                 BIND_NETWORK = "tcp";
