@@ -186,27 +186,30 @@ that is not theirs.
 ## Capacity
 
 `maxSlots` is a hard cap on concurrent instances, not a soft limit: every
-claimed slot runs a real VM. Measured on this host (i7-7700, 4 cores / 8
-threads, 64 GiB, KVM):
+claimed slot runs a real VM. Measured on this host (AMD EPYC 7502P, 32 cores /
+64 threads, 251 GiB, KVM) with both pools full, i.e. 40 `homewort` plus 14
+`homewort-v2` guests claimed at once:
 
-| Per claimed slot                 | Cost                                     |
-| -------------------------------- | ---------------------------------------- |
-| Idle, player just logged in      | 750 MiB RSS, ~0.16 of a hardware thread  |
-| After one in-guest `rebuildHome` | 2.4 GiB RSS                              |
-| qcow2 overlay after a session    | ~0.7 GiB (`diskSize` is a sparse bound)  |
-| Cold claim to SSH banner         | ~31 s, even with all 12 booting at once  |
-| `rebuildHome` wall time          | 46 s alone, 146 s with all 12 rebuilding |
+| Per claimed slot                 | Cost                                          |
+| -------------------------------- | --------------------------------------------- |
+| Idle, player just logged in      | 0.72 GiB RSS, CPU pressure ~0 %               |
+| After one in-guest `rebuildHome` | 2.4 GiB RSS                                   |
+| qcow2 overlay after a session    | ~0.63 GiB (`diskSize` is a sparse bound)      |
+| Cold claim to SSH banner         | 24 s median, 51 s max, with all 54 at once    |
+| `rebuildHome` wall time          | 59 s alone, 120 s median with all 54 at once  |
 
 RAM is the binding resource only in the worst case, where every guest touches
-its full `memorySize`: 12 x 4 GiB leaves ~14 GiB for CTFd, chall-manager, and
-page cache. Measured with 12 slots claimed and every guest rebuilding, the pool
-sits at 29 GiB and the host keeps 33 GiB available. CPU is the softer limit: 12
-idle guests already burn ~1.5 threads of 8, and a 12-way rebuild storm runs at
-70 % CPU pressure without a single failure, because `readyTimeout` covers the
-guest's boot, not a player's rebuild.
+its full `memorySize`: 40 x 4 GiB here plus 14 x 4 GiB for `homewort-v2`, 4 GiB
+for `baas` and 6 GiB for `rtunreal` declare 226 GiB, which still leaves ~25 GiB
+for CTFd, chall-manager, and page cache. Measured with all 54 guests
+rebuilding, the pools peaked at 130 GiB RSS and the host kept 118 GiB
+available, with no memory pressure at any point. CPU is the softer limit: the
+54-way rebuild storm peaked at load 79 and 27 % CPU pressure (avg10) without a
+single failure, because `readyTimeout` covers the guest's boot, not a player's
+rebuild.
 
-Exhaustion is neither queued nor pooled. The thirteenth team's deploy fails,
-visibly, in the CTFd UI. Nothing silently hands two teams the same box. Since
+Exhaustion is neither queued nor pooled. The forty-first player's deploy fails,
+visibly, in the CTFd UI. Nothing silently hands two players the same box. Since
 CTFd runs in `user_mode = users` on this deployment, a slot is claimed per
 player, not per team, so `maxSlots` is the number of players who can hold a box
 at the same instant. Throughput over an event is the other half of the sum: a
@@ -253,7 +256,7 @@ inventory.instances.homewort = {
   };
   roles.server.machines.ctf-machine = { };
   roles.server.settings = {
-    maxSlots = 12;
+    maxSlots = 40;
     publicHost = "ctf.nixcon.org";
     # basePort = 2201;           # public SSH port of the first slot
     # internalBasePort = 42201;  # loopback port QEMU forwards to

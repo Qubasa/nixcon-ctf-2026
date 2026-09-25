@@ -103,7 +103,7 @@
       };
       roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
-        maxSlots = 12;
+        maxSlots = 40;
         publicHost = "ctf.nixcon.org";
       };
     };
@@ -115,7 +115,7 @@
       };
       roles.server.machines.prod-ctf-machine = { };
       roles.server.settings = {
-        maxSlots = 4;
+        maxSlots = 14;
         publicHost = "ctf.nixcon.org";
       };
     };
