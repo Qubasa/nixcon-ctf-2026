@@ -77,8 +77,10 @@ clan vars get ctf-machine xin-login/password
 
 Create it in the admin UI (`https://ctf.nixcon.org/admin/challenges`):
 
-- **Category**: `nix`
+- **Category**: `Forensics`
 - **Name**: `xin`
+- **Value**: dynamic, `initial = 200`, `decay = 20`, `minimum = 50`,
+  `logarithmic`, the same entry value as the other easy challenges
 - **Type**: `dynamic_iac`
 - **Scenario**: `127.0.0.1:5000/xin:0.1.0`
 - **Timeout**: `1800` (30 minutes)
@@ -90,8 +92,8 @@ Create it in the admin UI (`https://ctf.nixcon.org/admin/challenges`):
 - **Description**:
 
   ```text
-  Click "deploy" to get your own X I N machine. The connection details,
-  including the password, show up here once it is up.
+  Find the flag on your own X I N box. Deploy an instance and ssh in with the
+  credentials shown.
 
   The box has no internet access and is yours alone for 30 minutes.
   ```
