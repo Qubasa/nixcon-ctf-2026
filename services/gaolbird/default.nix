@@ -265,6 +265,9 @@
                   # when a team claims the slot and `destroy` stops it again.
                   wantedBy = [ ];
                   after = [ "network.target" ];
+                  # A switch must not wipe a player's box mid-session. A changed
+                  # image takes effect on the slot's next claim.
+                  restartIfChanged = false;
 
                   environment = {
                     NIX_DISK_IMAGE = "/var/lib/${stateDir}/disk.qcow2";

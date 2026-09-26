@@ -229,6 +229,9 @@
                   description = "homewort challenge VM in slot ${toString n} (ssh on port ${toString port})";
                   wantedBy = [ ];
                   after = [ "network.target" ];
+                  # A switch must not wipe a player's box mid-session. A changed
+                  # image takes effect on the slot's next claim.
+                  restartIfChanged = false;
 
                   environment = {
                     NIX_DISK_IMAGE = "/var/lib/${stateDir}/disk.qcow2";
