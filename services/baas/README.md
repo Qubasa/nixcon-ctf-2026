@@ -221,3 +221,19 @@ Create it in the admin UI (`https://ctf.nixcon.org/admin/challenges`):
 
 Before making it visible, deploy an instance from the admin UI, open its URL,
 build `{ writeText }: writeText "x" "y"`, and destroy it again.
+
+On prod, baas is challenge 12. It started as a `standard` challenge with one
+shared flag and was converted in place, so its id, its solves, and every
+player's score stayed as they were. Creating a new challenge would have left
+those solves on a hidden one. The conversion:
+
+1. `POST /api/v1/challenge` to chall-manager with `id = "12"`, the scenario,
+   and `timeout = "2700s"`, the payload the plugin sends on create
+2. in one transaction inside the CTFd container: a `dynamic_challenge` row
+   with `initial = minimum = 200`, `decay = 0`, `linear`, which keeps the value
+   at 200 for every solve, a `dynamic_ia_c_challenge` row with the scenario,
+   `timeout = 2700` and `destroy_on_flag`, `challenges.type = 'dynamic_iac'`,
+   and the new description
+3. deleting the old static flag. The plugin accepts static flags next to the
+   instance's own, so leaving it would keep the shared flag valid
+4. clearing CTFd's challenge and standings caches
