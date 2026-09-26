@@ -168,6 +168,22 @@ seeds the store with what an offline `nixos-rebuild switch` needs, so a
 player's rebuild works even without reaching the internet — but the guest is
 free to reach it for whatever a stage's solve requires.
 
+Internet does not mean this host. QEMU's slirp opens the guest's connections
+from the QEMU process and maps `10.0.2.2` to the host's `127.0.0.1`, so an
+unfiltered guest, where players have root, could reach chall-manager's
+registry on `127.0.0.1:5000`, its API on `10.89.0.1:8080`, and every other
+local service. Each stage therefore lists its VM user `gaolbird-<stage>` in
+`ctf.vmEgress.users`, and `../../modules/vm-egress.nix` rejects that user's
+new connections to any address of this host and to private, link-local,
+multicast and reserved ranges. DNS to systemd-resolved's stub stays allowed.
+The [baas README](../baas/README.md#network) lists the rules. Check them from
+the host with:
+
+```console
+sudo -u gaolbird-1 curl -m 3 http://127.0.0.1:5000/v2/  # must fail
+sudo -u gaolbird-1 curl -m 3 -sI https://example.com    # must succeed
+```
+
 Because the guest is not slirp-restricted, QEMU's ordinary hostfwd would
 normally let an external client reach it directly. This service still
 forwards guest SSH only to loopback (`internalBasePort + n - 1`) and serves

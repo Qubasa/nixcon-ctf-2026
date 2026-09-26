@@ -53,8 +53,10 @@ slirp also maps its host alias `10.0.2.2` to the host's `127.0.0.1`. Left alone,
 a guest could reach chall-manager's registry on `127.0.0.1:5000`, its API on
 `10.89.0.1:8080`, and every other service on this machine.
 
-QEMU runs as the `baas` user, so `networking.firewall.extraCommands` sends
-every packet that user sends through an `OUTPUT` chain, `baas-egress`:
+QEMU runs as the `baas` user, which this service lists in
+`ctf.vmEgress.users`. `../../modules/vm-egress.nix` then sends every packet
+that user sends through the iptables `OUTPUT` chain `vm-egress`, which the
+`gaolbird` VMs share:
 
 1. packets of an already established connection pass. This keeps nginx's
    connections *to* the guest's forwarded port working.
@@ -66,10 +68,10 @@ every packet that user sends through an `OUTPUT` chain, `baas-egress`:
    reserved range, for IPv4 and IPv6.
 5. everything else, that is the public internet, passes.
 
-The rules fail closed. A guard rule rejects the guest's new connections while
-the chain is rebuilt on a firewall reload, `baas-vm.service` requires
-`firewall.service` so stopping the firewall stops the VM, and an assertion
-refuses a host without the iptables firewall.
+The rules fail closed. A guard rule rejects the guests' new connections while
+the chain is rebuilt on a firewall reload, stopping the firewall leaves the
+chain in place, `baas-vm.service` requires `firewall.service` anyway, and an
+assertion refuses a host without the iptables firewall.
 
 To check the filter from the host, run as the `baas` user:
 

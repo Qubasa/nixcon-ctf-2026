@@ -137,37 +137,6 @@
 
             upstream = "http://127.0.0.1:${toString settings.internalPort}";
 
-            # QEMU's slirp opens the guest's outbound connections from its own
-            # process, so matching the `baas` user catches exactly the guest.
-            fromVm = "-m owner --uid-owner baas";
-            newFromVm = "${fromVm} -m conntrack --ctstate NEW";
-
-            # The guard rule rejects new guest connections while the chain is
-            # rebuilt, so a firewall reload never opens a window.
-            egressFilter =
-              {
-                cmd,
-                allow,
-                deny,
-              }:
-              ''
-                ${cmd} -w -C OUTPUT ${newFromVm} -j REJECT 2>/dev/null \
-                  || ${cmd} -w -I OUTPUT 1 ${newFromVm} -j REJECT
-                ${cmd} -w -N baas-egress 2>/dev/null || ${cmd} -w -F baas-egress
-                ${cmd} -w -A baas-egress -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-                ${lib.concatMapStrings (rule: "${cmd} -w -A baas-egress ${rule} -j ACCEPT\n") allow}
-                ${cmd} -w -A baas-egress -m addrtype --dst-type LOCAL -j REJECT
-                ${cmd} -w -A baas-egress -d ${lib.concatStringsSep "," deny} -j REJECT
-                ${cmd} -w -C OUTPUT ${fromVm} -j baas-egress 2>/dev/null \
-                  || ${cmd} -w -I OUTPUT 2 ${fromVm} -j baas-egress
-                ${cmd} -w -D OUTPUT ${newFromVm} -j REJECT
-              '';
-
-            resolvedStub = lib.optionals config.services.resolved.enable [
-              "-d 127.0.0.53 -p udp --dport 53"
-              "-d 127.0.0.53 -p tcp --dport 53"
-            ];
-
             guest = import "${pkgs.path}/nixos/lib/eval-config.nix" {
               system = null;
               inherit pkgs;
@@ -200,194 +169,160 @@
               error_page 401 = @redirectToAnubis;
             '';
           in
-          lib.mkMerge [
-            {
-              assertions = [
-                {
-                  assertion = config.networking.firewall.enable && !config.networking.nftables.enable;
-                  message = ''
-                    services/baas: the baas VM has internet access, and only the iptables
-                    rules in networking.firewall.extraCommands keep it off this host's
-                    loopback and private networks. Enable networking.firewall with the
-                    iptables backend.
-                  '';
-                }
-              ];
+          {
+            imports = [ ../../modules/vm-egress.nix ];
 
-              networking.firewall.extraCommands =
-                egressFilter {
-                  cmd = "iptables";
-                  allow = resolvedStub;
-                  deny = [
-                    "0.0.0.0/8"
-                    "10.0.0.0/8"
-                    "100.64.0.0/10"
-                    "127.0.0.0/8"
-                    "169.254.0.0/16"
-                    "172.16.0.0/12"
-                    "192.168.0.0/16"
-                    "224.0.0.0/3"
-                  ];
-                }
-                + lib.optionalString config.networking.enableIPv6 (egressFilter {
-                  cmd = "ip6tables";
-                  allow = [ ];
-                  deny = [
-                    "::/128"
-                    "::1/128"
-                    "::ffff:0:0/96"
-                    "fc00::/7"
-                    "fe80::/10"
-                    "ff00::/8"
-                  ];
-                });
+            config = lib.mkMerge [
+              {
+                ctf.vmEgress.users = [ "baas" ];
 
-              users.users.baas = {
-                isSystemUser = true;
-                group = "baas";
-                description = "Runs the baas challenge VM";
-              };
-              users.groups.baas = { };
-
-              clan.core.vars.generators.baas = {
-                files.flag = {
-                  secret = true;
-                  owner = "baas";
+                users.users.baas = {
+                  isSystemUser = true;
                   group = "baas";
-                  mode = "0400";
-                  restartUnits = [ "baas-vm.service" ];
+                  description = "Runs the baas challenge VM";
                 };
-                runtimeInputs = [
-                  pkgs.coreutils
-                  pkgs.openssl
-                ];
-                script = ''
-                  printf '${settings.flagFormat}' "$(openssl rand -hex 16)" > "$out/flag"
-                '';
-              };
+                users.groups.baas = { };
 
-              systemd.services.baas-vm = {
-                description = "baas challenge VM";
-                wantedBy = [ "multi-user.target" ];
-                # Without the egress filter the guest could reach this host's
-                # loopback, so the VM stops whenever the firewall does.
-                requires = [ "firewall.service" ];
-                after = [
-                  "network.target"
-                  "firewall.service"
-                ];
-
-                environment = {
-                  NIX_DISK_IMAGE = "${stateDir}/disk-${builtins.substring 0 12 (baseNameOf vm)}.qcow2";
-                  QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString settings.internalPort}-:${toString settings.port}";
-                  QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${flag.path}";
-                };
-
-                serviceConfig = {
-                  ExecStart = "${vm}/bin/run-baas-vm";
-                  Restart = "always";
-                  RestartSec = 5;
-
-                  User = "baas";
-                  Group = "baas";
-                  SupplementaryGroups = [ "kvm" ];
-                  StateDirectory = "baas-vm";
-                  StateDirectoryMode = "0700";
-                  PrivateTmp = true;
-
-                  NoNewPrivileges = true;
-                  ProtectSystem = "strict";
-                  ProtectHome = true;
-                  ProtectKernelTunables = true;
-                  ProtectControlGroups = true;
-                  RestrictAddressFamilies = [
-                    "AF_UNIX"
-                    "AF_INET"
-                    "AF_INET6"
+                clan.core.vars.generators.baas = {
+                  files.flag = {
+                    secret = true;
+                    owner = "baas";
+                    group = "baas";
+                    mode = "0400";
+                    restartUnits = [ "baas-vm.service" ];
+                  };
+                  runtimeInputs = [
+                    pkgs.coreutils
+                    pkgs.openssl
                   ];
-                  RestrictSUIDSGID = true;
-                  LockPersonality = true;
+                  script = ''
+                    printf '${settings.flagFormat}' "$(openssl rand -hex 16)" > "$out/flag"
+                  '';
                 };
-              };
-            }
 
-            (lib.mkIf proxy.enable {
-              networking.firewall.allowedTCPPorts = [ settings.publicPort ];
-
-              services.nginx = {
-                enable = true;
-                recommendedProxySettings = true;
-                recommendedTlsSettings = true;
-                recommendedOptimisation = true;
-                recommendedGzipSettings = true;
-
-                appendHttpConfig = ''
-                  limit_req_zone $binary_remote_addr zone=baas_build:4m rate=12r/m;
-                '';
-
-                virtualHosts.baas = {
-                  serverName = proxy.hostName;
-                  default = true;
-                  listen = [
-                    {
-                      addr = "0.0.0.0";
-                      port = settings.publicPort;
-                    }
-                    {
-                      addr = "[::]";
-                      port = settings.publicPort;
-                    }
+                systemd.services.baas-vm = {
+                  description = "baas challenge VM";
+                  wantedBy = [ "multi-user.target" ];
+                  # Without the egress filter the guest could reach this host's
+                  # loopback, so the VM stops whenever the firewall does.
+                  requires = [ "firewall.service" ];
+                  after = [
+                    "network.target"
+                    "firewall.service"
                   ];
 
-                  locations = {
-                    "/" = {
-                      proxyPass = upstream;
-                      extraConfig = proxyTimeouts + anubisGate;
-                    };
+                  environment = {
+                    NIX_DISK_IMAGE = "${stateDir}/disk-${builtins.substring 0 12 (baseNameOf vm)}.qcow2";
+                    QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString settings.internalPort}-:${toString settings.port}";
+                    QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${flag.path}";
+                  };
 
-                    "/build" = {
-                      proxyPass = upstream;
-                      extraConfig = ''
-                        limit_req zone=baas_build burst=5 nodelay;
-                        limit_req_status 429;
-                      ''
-                      + proxyTimeouts
-                      + anubisGate;
-                    };
-                  }
-                  // lib.optionalAttrs proxy.anubis.enable {
-                    "/.within.website/" = {
-                      proxyPass = "http://127.0.0.1:${toString proxy.anubis.port}";
-                      extraConfig = ''
-                        auth_request off;
-                        proxy_pass_request_body off;
-                        proxy_set_header Content-Length "";
-                      '';
-                    };
+                  serviceConfig = {
+                    ExecStart = "${vm}/bin/run-baas-vm";
+                    Restart = "always";
+                    RestartSec = 5;
 
-                    "@redirectToAnubis".extraConfig = ''
-                      return 307 /.within.website/?redir=$scheme://$http_host$request_uri;
-                      auth_request off;
-                    '';
+                    User = "baas";
+                    Group = "baas";
+                    SupplementaryGroups = [ "kvm" ];
+                    StateDirectory = "baas-vm";
+                    StateDirectoryMode = "0700";
+                    PrivateTmp = true;
+
+                    NoNewPrivileges = true;
+                    ProtectSystem = "strict";
+                    ProtectHome = true;
+                    ProtectKernelTunables = true;
+                    ProtectControlGroups = true;
+                    RestrictAddressFamilies = [
+                      "AF_UNIX"
+                      "AF_INET"
+                      "AF_INET6"
+                    ];
+                    RestrictSUIDSGID = true;
+                    LockPersonality = true;
                   };
                 };
-              };
+              }
 
-              services.anubis.instances.baas = lib.mkIf proxy.anubis.enable {
-                settings = {
-                  TARGET = " ";
-                  BIND = "127.0.0.1:${toString proxy.anubis.port}";
-                  BIND_NETWORK = "tcp";
-                  OG_PASSTHROUGH = true;
-                  REDIRECT_DOMAINS = proxy.hostName;
+              (lib.mkIf proxy.enable {
+                networking.firewall.allowedTCPPorts = [ settings.publicPort ];
+
+                services.nginx = {
+                  enable = true;
+                  recommendedProxySettings = true;
+                  recommendedTlsSettings = true;
+                  recommendedOptimisation = true;
+                  recommendedGzipSettings = true;
+
+                  appendHttpConfig = ''
+                    limit_req_zone $binary_remote_addr zone=baas_build:4m rate=12r/m;
+                  '';
+
+                  virtualHosts.baas = {
+                    serverName = proxy.hostName;
+                    default = true;
+                    listen = [
+                      {
+                        addr = "0.0.0.0";
+                        port = settings.publicPort;
+                      }
+                      {
+                        addr = "[::]";
+                        port = settings.publicPort;
+                      }
+                    ];
+
+                    locations = {
+                      "/" = {
+                        proxyPass = upstream;
+                        extraConfig = proxyTimeouts + anubisGate;
+                      };
+
+                      "/build" = {
+                        proxyPass = upstream;
+                        extraConfig = ''
+                          limit_req zone=baas_build burst=5 nodelay;
+                          limit_req_status 429;
+                        ''
+                        + proxyTimeouts
+                        + anubisGate;
+                      };
+                    }
+                    // lib.optionalAttrs proxy.anubis.enable {
+                      "/.within.website/" = {
+                        proxyPass = "http://127.0.0.1:${toString proxy.anubis.port}";
+                        extraConfig = ''
+                          auth_request off;
+                          proxy_pass_request_body off;
+                          proxy_set_header Content-Length "";
+                        '';
+                      };
+
+                      "@redirectToAnubis".extraConfig = ''
+                        return 307 /.within.website/?redir=$scheme://$http_host$request_uri;
+                        auth_request off;
+                      '';
+                    };
+                  };
                 };
-                policy.settings.status_codes = {
-                  CHALLENGE = 200;
-                  DENY = 403;
+
+                services.anubis.instances.baas = lib.mkIf proxy.anubis.enable {
+                  settings = {
+                    TARGET = " ";
+                    BIND = "127.0.0.1:${toString proxy.anubis.port}";
+                    BIND_NETWORK = "tcp";
+                    OG_PASSTHROUGH = true;
+                    REDIRECT_DOMAINS = proxy.hostName;
+                  };
+                  policy.settings.status_codes = {
+                    CHALLENGE = 200;
+                    DENY = 403;
+                  };
                 };
-              };
-            })
-          ];
+              })
+            ];
+          };
       };
   };
 }

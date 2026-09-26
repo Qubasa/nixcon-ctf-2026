@@ -144,8 +144,7 @@
             ...
           }:
           let
-            login =
-              config.clan.core.vars.generators."gaolbird-${toString settings.challengeStage}-login".files;
+            login = config.clan.core.vars.generators."gaolbird-${toString settings.challengeStage}-login".files;
 
             slots = lib.range 1 settings.maxSlots;
 
@@ -226,8 +225,9 @@
             # `gaol`, plus the closure an offline `sudo rebuildHome` needs already
             # in the guest store. The bootloader lives in the image so a player's
             # `nixos-rebuild switch` succeeds; the host Nix store is not shared
-            # into the guest. Unlike `homewort`, this VM keeps normal outbound
-            # network access: some stages' intended solves need it.
+            # into the guest. Unlike `homewort`, this VM keeps outbound access to
+            # the internet, which some stages' intended solves need, but
+            # `modules/vm-egress.nix` keeps it off this host and private networks.
             vm =
               (inputs.gaolbird.nixosConfigurations.gaol-vm.extendModules {
                 modules = [
@@ -362,6 +362,10 @@
             };
           in
           {
+            imports = [ ../../modules/vm-egress.nix ];
+
+            ctf.vmEgress.users = [ "gaolbird-${toString settings.challengeStage}" ];
+
             # Named per stage, not just "gaolbird": every stage's module
             # instance defines this on the same machine, and a shared name
             # would either collide (conflicting `description`s) or, if made to
