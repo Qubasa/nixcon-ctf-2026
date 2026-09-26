@@ -119,6 +119,10 @@ mount namespace, where `/var/lib` is read-only apart from
 powers off their box: the slot is still theirs, so it comes back with the same
 flag.
 
+The VM units set `restartIfChanged = false`, so a deploy never restarts a
+running box and wipes a player's work. A changed image takes effect when the
+slot is next claimed.
+
 chall-manager destroys instances on a correct flag submission
 (`destroy_on_flag`) or, at the latest, when the 60-minute timeout expires. Its
 janitor runs `homewort-v2-instance destroy` and frees the slot.

@@ -116,6 +116,10 @@ apart from the slot directories. `Restart = "always"` covers a player who
 bricks or powers off their box: the slot is still theirs, so it comes back
 with the same flag.
 
+The VM units set `restartIfChanged = false`, so a deploy never restarts a
+running box and wipes a team's work. A changed image takes effect when the
+slot is next claimed.
+
 Instances are not recycled blindly: chall-manager destroys them on a correct
 flag submission (`destroy_on_flag`) or, at the latest, when the challenge's
 timeout expires. Its janitor sweeps expired instances by running
