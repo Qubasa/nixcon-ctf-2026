@@ -29,8 +29,8 @@ harmless in a throwaway guest and unacceptable on the host:
    README calls it RCE-as-a-Service, and the service holds `NOPASSWD` sudo on
    `homewort-instance`). Its OCI registry on `127.0.0.1:5000` accepts
    plain-HTTP pushes with `delete.enabled = true`, which means a player could
-   replace the scenario that chall-manager executes. Neither is reachable from
-   inside the guest.
+   replace the scenario that chall-manager executes. The guest's egress filter
+   (see Network) keeps both out of reach.
 
 Systemd hardening on the app unit cannot fix either of those: the builds run in
 `nix-daemon`'s namespace, not in the app's. Containment has to be at the store
@@ -46,23 +46,49 @@ anyway.
 
 ## Network
 
-The guest runs with QEMU's `restrict=on`: no egress at all. `restrict=on` also
-drops the guest's replies to any client address other than slirp's own host
-alias, and only a loopback client is rewritten to that alias. The guest's app
-port is therefore forwarded to `127.0.0.1:<internalPort>`, and the public port
-belongs to a host process that reaches the guest over loopback. Here that
-process is nginx, where homewort uses `systemd-socket-proxyd`.
+The guest has internet access: solving the challenge needs a fixed-output
+derivation that talks to the outside world. QEMU's slirp opens those
+connections from the QEMU process on the host, which is a problem, because
+slirp also maps its host alias `10.0.2.2` to the host's `127.0.0.1`. Left alone,
+a guest could reach chall-manager's registry on `127.0.0.1:5000`, its API on
+`10.89.0.1:8080`, and every other service on this machine.
 
-Loopback *inside* the guest still works, which is what the challenge needs.
+QEMU runs as the `baas` user, so `networking.firewall.extraCommands` sends
+every packet that user sends through an `OUTPUT` chain, `baas-egress`:
 
-No egress has a cost: a player's build can only use what the image already
-ships. `nix.settings.substituters` is empty in the guest, so a build that needs
-an absent path fails immediately instead of hanging on an unreachable cache.
-`system.extraDependencies` seeds `stdenv`, `stdenvNoCC`, the usual
-`buildInputs` tools, and four `inputDerivation`s, so `mkDerivation`,
-`runCommand`, `writeText`, and a derivation that really compiles something all
-work offline. Anything else, such as `pkgs.fetchurl` from the internet or a
-package whose source is not in the image, fails to build, and that is expected.
+1. packets of an already established connection pass. This keeps nginx's
+   connections *to* the guest's forwarded port working.
+2. DNS to systemd-resolved's stub on `127.0.0.53:53` passes, because slirp
+   forwards the guest's DNS to the host's resolver.
+3. a new connection to any address of this host (`--dst-type LOCAL`, which
+   covers `127.0.0.0/8`, the public IP, docker and `challmgr0`) is rejected.
+4. so is a new connection to any private, link-local, CGNAT, multicast, or
+   reserved range, for IPv4 and IPv6.
+5. everything else, that is the public internet, passes.
+
+The rules fail closed. A guard rule rejects the guest's new connections while
+the chain is rebuilt on a firewall reload, `baas-vm.service` requires
+`firewall.service` so stopping the firewall stops the VM, and an assertion
+refuses a host without the iptables firewall.
+
+To check the filter from the host, run as the `baas` user:
+
+```console
+sudo -u baas curl -m 3 http://127.0.0.1:5000/v2/  # must fail: loopback
+sudo -u baas curl -m 3 http://10.89.0.1:8080/     # must fail: local address
+sudo -u baas curl -m 3 -sI https://example.com    # must succeed: internet
+```
+
+The guest's app port is forwarded to `127.0.0.1:<internalPort>` only, and the
+public port belongs to nginx, which reaches the guest over loopback.
+
+Loopback *inside* the guest works, which is what the challenge needs.
+
+`nix.settings.substituters` stays empty in the guest. Nothing collects the
+guest's store, and a binary cache would let one request pull a multi-gigabyte
+closure into it. Builds download their sources instead and compile against
+what the image seeds: `system.extraDependencies` holds `stdenv`, `stdenvNoCC`,
+the usual `buildInputs` tools, and four `inputDerivation`s.
 
 The vhost is plain HTTP on `publicPort` (default `8081`), no ACME:
 
@@ -247,5 +273,5 @@ the `dynamic_iac` form does not apply.
   case-sensitive
 - **Description**: must carry the URL `http://ctf.nixcon.org:8081/`, because
   nobody will guess plain HTTP on a non-standard port. It is worth saying that
-  the box has no internet access, so that nobody burns time on a build that
-  wants to download a source tarball.
+  the box reaches the internet but has no binary cache, so that nobody waits on
+  a build of a large package from source.

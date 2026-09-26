@@ -28,10 +28,9 @@
             default = 43000;
             description = ''
               Loopback port QEMU forwards the guest's app port to. Players never
-              see it: QEMU's slirp `restrict=on` drops guest replies to any
-              client address other than its own host alias, and only a loopback
-              client is rewritten to that alias, so the public port has to be
-              served by a host process that reaches the guest over loopback.
+              see it: the public port belongs to nginx, which reaches the guest
+              over loopback and adds the rate limit and `X-Forwarded-For` the
+              app keys its listings on.
             '';
           };
 
@@ -138,6 +137,37 @@
 
             upstream = "http://127.0.0.1:${toString settings.internalPort}";
 
+            # QEMU's slirp opens the guest's outbound connections from its own
+            # process, so matching the `baas` user catches exactly the guest.
+            fromVm = "-m owner --uid-owner baas";
+            newFromVm = "${fromVm} -m conntrack --ctstate NEW";
+
+            # The guard rule rejects new guest connections while the chain is
+            # rebuilt, so a firewall reload never opens a window.
+            egressFilter =
+              {
+                cmd,
+                allow,
+                deny,
+              }:
+              ''
+                ${cmd} -w -C OUTPUT ${newFromVm} -j REJECT 2>/dev/null \
+                  || ${cmd} -w -I OUTPUT 1 ${newFromVm} -j REJECT
+                ${cmd} -w -N baas-egress 2>/dev/null || ${cmd} -w -F baas-egress
+                ${cmd} -w -A baas-egress -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+                ${lib.concatMapStrings (rule: "${cmd} -w -A baas-egress ${rule} -j ACCEPT\n") allow}
+                ${cmd} -w -A baas-egress -m addrtype --dst-type LOCAL -j REJECT
+                ${cmd} -w -A baas-egress -d ${lib.concatStringsSep "," deny} -j REJECT
+                ${cmd} -w -C OUTPUT ${fromVm} -j baas-egress 2>/dev/null \
+                  || ${cmd} -w -I OUTPUT 2 ${fromVm} -j baas-egress
+                ${cmd} -w -D OUTPUT ${newFromVm} -j REJECT
+              '';
+
+            resolvedStub = lib.optionals config.services.resolved.enable [
+              "-d 127.0.0.53 -p udp --dport 53"
+              "-d 127.0.0.53 -p tcp --dport 53"
+            ];
+
             guest = import "${pkgs.path}/nixos/lib/eval-config.nix" {
               system = null;
               inherit pkgs;
@@ -149,7 +179,6 @@
                 {
                   virtualisation.vmVariantWithBootLoader.virtualisation = {
                     graphics = false;
-                    restrictNetwork = true;
                     inherit (settings) memorySize cores diskSize;
                   };
                 }
@@ -173,6 +202,46 @@
           in
           lib.mkMerge [
             {
+              assertions = [
+                {
+                  assertion = config.networking.firewall.enable && !config.networking.nftables.enable;
+                  message = ''
+                    services/baas: the baas VM has internet access, and only the iptables
+                    rules in networking.firewall.extraCommands keep it off this host's
+                    loopback and private networks. Enable networking.firewall with the
+                    iptables backend.
+                  '';
+                }
+              ];
+
+              networking.firewall.extraCommands =
+                egressFilter {
+                  cmd = "iptables";
+                  allow = resolvedStub;
+                  deny = [
+                    "0.0.0.0/8"
+                    "10.0.0.0/8"
+                    "100.64.0.0/10"
+                    "127.0.0.0/8"
+                    "169.254.0.0/16"
+                    "172.16.0.0/12"
+                    "192.168.0.0/16"
+                    "224.0.0.0/3"
+                  ];
+                }
+                + lib.optionalString config.networking.enableIPv6 (egressFilter {
+                  cmd = "ip6tables";
+                  allow = [ ];
+                  deny = [
+                    "::/128"
+                    "::1/128"
+                    "::ffff:0:0/96"
+                    "fc00::/7"
+                    "fe80::/10"
+                    "ff00::/8"
+                  ];
+                });
+
               users.users.baas = {
                 isSystemUser = true;
                 group = "baas";
@@ -200,15 +269,17 @@
               systemd.services.baas-vm = {
                 description = "baas challenge VM";
                 wantedBy = [ "multi-user.target" ];
-                after = [ "network.target" ];
+                # Without the egress filter the guest could reach this host's
+                # loopback, so the VM stops whenever the firewall does.
+                requires = [ "firewall.service" ];
+                after = [
+                  "network.target"
+                  "firewall.service"
+                ];
 
                 environment = {
-                  NIX_DISK_IMAGE = "${stateDir}/disk-${
-                    builtins.substring 0 12 (baseNameOf vm)
-                  }.qcow2";
-                  QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${
-                    toString settings.internalPort
-                  }-:${toString settings.port}";
+                  NIX_DISK_IMAGE = "${stateDir}/disk-${builtins.substring 0 12 (baseNameOf vm)}.qcow2";
+                  QEMU_NET_OPTS = "hostfwd=tcp:127.0.0.1:${toString settings.internalPort}-:${toString settings.port}";
                   QEMU_OPTS = "-fw_cfg name=opt/ctf/flag,file=${flag.path}";
                 };
 
