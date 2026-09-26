@@ -22,11 +22,25 @@
   ];
 
   inventory.machines = {
-    ctf-machine = { };
+    ctf-machine = {
+    };
   };
 
-  inventory.instances = {
 
+
+  
+  inventory.instances = {
+    internet = {
+      roles.default.machines."prod-ctf-machine" = {
+        settings.host = "ctf.nixcon.org"; 
+        settings.user = "root";
+      };
+
+      roles.default.machines."ctf-machine" = {
+        settings.host = "178.63.10.46"; 
+        settings.user = "root";
+      };
+    };
     sshd = {
       roles.server.tags.all = { };
       roles.server.settings.authorizedKeys = {
@@ -51,9 +65,9 @@
       };
     };
 
-    p2p-ssh-iroh = {
-      roles.server.tags = [ "nixos" ];
-    };
+    # p2p-ssh-iroh = {
+    #   roles.server.tags = [ "nixos" ];
+    # };
 
     ctfd = {
       module = {
