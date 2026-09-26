@@ -37,7 +37,7 @@
       };
 
       roles.default.machines."ctf-machine" = {
-        settings.host = "178.63.10.46"; 
+        settings.host = "staging-ctf.immutable-byte.de"; 
         settings.user = "root";
       };
     };
