@@ -40,7 +40,7 @@ than building it:
    ctf-machine that is loopback, where chall-manager's unauthenticated API
    listens on `10.89.0.1:8080` and its registry on `127.0.0.1:5000`.
    [baas](../baas/README.md) has the same problem and the same answer: the
-   builds happen in a guest with `restrict=on` and no egress at all.
+   builds happen in a guest, whose egress filter keeps it off this host.
 3. **The build sandbox bind-mounts the whole store read-only into builders.**
    On the host that is every service's closure. In the guest it is the
    challenge plus its build inputs.
@@ -171,7 +171,7 @@ inventory.instances.rtunreal = {
     # port = 3000;            # runner port inside the guest
     # internalPort = 43002;   # loopback port QEMU forwards to
     # gatewayPort = 43003;    # loopback port of the submission desk
-    # publicPort = 8082;      # 8080 is chall-manager's, 8081 is baas'
+    # publicPort = 8082;      # 8080 is chall-manager's
     # memorySize = 6144;      # MiB, one nixpkgs evaluation per check
     # cores = 4;
     # diskSize = 40960;       # MiB, sparse, and hourly GC keeps it flat

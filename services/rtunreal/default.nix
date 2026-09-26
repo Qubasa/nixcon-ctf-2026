@@ -47,7 +47,7 @@
             default = 8082;
             description = ''
               Public plain-HTTP port of the vhost. 80 and 443 belong to CTFd
-              and gitea, 8080 to chall-manager, 8081 to baas.
+              and gitea, 8080 to chall-manager.
             '';
           };
 

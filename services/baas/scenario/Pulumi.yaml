@@ -1,0 +1,6 @@
+name: baas
+description: Allocates one ephemeral baas challenge VM per chall-manager instance by driving the baas-instance allocator on the CTF host.
+runtime:
+  name: go
+  options:
+    binary: ./main

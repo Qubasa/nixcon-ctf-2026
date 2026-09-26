@@ -29,9 +29,6 @@ let
 
   portLine = "const port = 3000;";
   portPatched = "const port = Number(process.env.PORT ?? 3000);";
-
-  appLine = "const app = express();";
-  trustProxyPatched = "${appLine}\napp.set('trust proxy', true);";
 in
 stdenvNoCC.mkDerivation {
   pname = "baas";
@@ -46,17 +43,6 @@ stdenvNoCC.mkDerivation {
     # gitea's loopback port.
     substituteInPlace index.js \
       --replace-fail ${lib.escapeShellArg portLine} ${lib.escapeShellArg portPatched}
-
-    # `builtPaths` is keyed on `req.ip`, and Express 5 defaults to
-    # `trust proxy = false`. Behind the host's nginx every request would then
-    # report 127.0.0.1, which puts all players in one shared bucket. The startup
-    # flag build would land in that bucket too, so `GET /` would hand the flag's
-    # store path to everybody. The bootstrap POST sends an unguessable
-    # `X-Forwarded-For` for the same reason: with all hops trusted, the
-    # left-most entry wins, so the flag must not be parked on an address a
-    # player could claim.
-    substituteInPlace index.js \
-      --replace-fail ${lib.escapeShellArg appLine} ${lib.escapeShellArg trustProxyPatched}
   '';
 
   dontBuild = true;

@@ -21,6 +21,7 @@ let
       pkgs.coreutils
       pkgs.curl
       config.nix.package
+      config.networking.firewall.package
     ];
     text = ''
       if [ -r ${flagBlob} ]; then
@@ -48,7 +49,8 @@ let
 
       # The unit counts as started once the process is forked, which is a
       # second or two before express binds. GET /build is a static page, so a
-      # 200 means the listener is really up.
+      # 200 means the listener is really up. Loopback is always open in the
+      # guest firewall.
       for _ in $(seq 1 60); do
         if curl -sf -o /dev/null http://127.0.0.1:${toString port}/build; then
           break
@@ -56,25 +58,25 @@ let
         sleep 1
       done
 
-      # `builtPaths` is in-process memory, so the flag has to be re-registered
-      # on every start, not just on first boot.
-      #
-      # The app trusts every proxy hop and therefore keys the build on the
-      # left-most `X-Forwarded-For` entry. A fixed value there would be a value
-      # a player could send too, so this parks the flag under a random one: the
-      # only listing it shows up in is one nobody can ask for. Player requests
-      # still get their own bucket, the address the host's nginx appends.
-      bucket="bootstrap-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+      # Registered from 127.0.0.1, exactly as the challenge's own init.sh
+      # does: the intended solve is a fixed-output derivation that asks
+      # `localhost:${toString port}/` for its listing. `builtPaths` is
+      # in-process memory, so this re-runs on every start of the app.
       curl -4 -sS --fail-with-body \
-        -H "X-Forwarded-For: $bucket" \
         --data-urlencode "code=$code" \
         http://127.0.0.1:${toString port}/build
 
       # The app ran `nix-build` in its working directory, so `./result` now
       # points at the flag. Delete it: until a player's own build overwrites
       # it, `/path//var/lib/baas/result` would serve the flag to anyone who
-      # asks, and the app restarts on failure.
-      rm -f ${stateDir}/result ${stateDir}/flag-result
+      # asks.
+      rm -f ${stateDir}/result
+
+      # Only now does the host's slirp forward reach the app. The host's
+      # allocator reports the slot ready on the first HTTP answer, so a team
+      # never gets an instance whose flag is not registered yet.
+      iptables -w -C nixos-fw -p tcp --dport ${toString port} -j nixos-fw-accept 2>/dev/null \
+        || iptables -w -I nixos-fw -p tcp --dport ${toString port} -j nixos-fw-accept
     '';
   };
 
@@ -116,8 +118,6 @@ let
 in
 {
   networking.hostName = "baas";
-
-  networking.firewall.allowedTCPPorts = [ port ];
 
   nix.settings = {
     substituters = [ ];

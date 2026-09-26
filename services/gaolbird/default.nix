@@ -156,7 +156,7 @@
             publicHost =
               if settings.publicHost != null then settings.publicHost else config.networking.fqdnOrHostName;
 
-            allocator = import ./allocator.nix {
+            allocator = import ../../pkgs/pool-allocator.nix {
               inherit pkgs lib;
               inherit (settings)
                 maxSlots
@@ -168,14 +168,14 @@
               inherit publicHost;
               # A non-secret var, already materialised at eval time: it is part
               # of the challenge description, so it may sit in the store.
-              password = login.password.value;
+              sshLogin = {
+                user = "gaolbird";
+                password = login.password.value;
+              };
               stateDir = slotDir;
               systemctl = "${config.systemd.package}/bin/systemctl";
               name = "gaolbird-${toString settings.challengeStage}-instance";
               unitPrefix = "gaolbird-${toString settings.challengeStage}-vm";
-              # Matches the per-stage host user above: the default
-              # "gaolbird:gaolbird" no longer exists as a single shared
-              # account, and chowning to a nonexistent user would fail.
               flagOwner = "gaolbird-${toString settings.challengeStage}:gaolbird-${toString settings.challengeStage}";
             };
 

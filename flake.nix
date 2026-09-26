@@ -72,7 +72,7 @@
           inherit pkgs;
           inherit (pkgs) lib;
         };
-        gaolbird-allocator = import ./services/gaolbird/allocator-test.nix {
+        pool-allocator = import ./pkgs/pool-allocator-test.nix {
           inherit pkgs;
           inherit (pkgs) lib;
         };

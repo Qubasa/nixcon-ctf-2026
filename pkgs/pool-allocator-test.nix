@@ -17,14 +17,16 @@ let
   # allocator itself no longer knows the concept of a "stage", only the
   # binary name and unit prefix that follow from one.
   mkAllocator =
-    stage:
-    args:
-    import ./allocator.nix (
+    stage: args:
+    import ./pool-allocator.nix (
       {
         inherit pkgs lib;
         flagFormat = "nixcon{gaolbird-${toString stage}_%s}";
         publicHost = "ctf.example.org";
-        password = "word-word-word";
+        sshLogin = {
+          user = "gaolbird";
+          password = "word-word-word";
+        };
         flagOwner = null;
         systemctl = "${systemctlStub}";
         name = "gaolbird-${toString stage}-instance";
@@ -82,8 +84,25 @@ let
       grep -qx 'start gaolbird-${toString stage}-vm-1.service' "$GAOLBIRD_TEST_LOG"
       grep -qx 'stop gaolbird-${toString stage}-vm-1.service' "$GAOLBIRD_TEST_LOG"
     '';
+
+  # A web pool: no login, so the player is handed a URL to the slot's port.
+  webAllocator = import ./pool-allocator.nix {
+    inherit pkgs lib;
+    maxSlots = 1;
+    basePort = 2601;
+    internalBasePort = 42601;
+    readyTimeout = 5;
+    flagFormat = "nixcon{baas_%s}";
+    publicHost = "ctf.example.org";
+    flagOwner = null;
+    systemctl = "${systemctlStub}";
+    name = "baas-instance";
+    unitPrefix = "baas-vm";
+    stateDir = "state-web";
+    readyProbe = "${readyProbeStub}";
+  };
 in
-pkgs.runCommand "gaolbird-allocator-test"
+pkgs.runCommand "pool-allocator-test"
   {
     nativeBuildInputs = [
       pkgs.jq
@@ -183,9 +202,15 @@ pkgs.runCommand "gaolbird-allocator-test"
 
     ${lib.concatMapStringsSep "\n" mkStageCheck otherStages}
 
+    web=$(${webAllocator}/bin/baas-instance create --identity foxtrot)
+    jq -e '.connection_info == "http://ctf.example.org:2601/"' <<< "$web"
+    jq -e '.flag | test("^nixcon\\{baas_[0-9a-f]{32}\\}$")' <<< "$web"
+    ${webAllocator}/bin/baas-instance destroy --identity foxtrot
+
     # Every stage's units stayed inside that stage's own name: no stage's
     # allocator ever started or stopped another stage's VM.
     shape='^(start|stop) gaolbird-[1-4]-vm-[12]\.service$'
+    shape+='|^(start|stop) baas-vm-1\.service$'
     shape+='|^(dead)?probe [0-9]+$'
     ! grep -qvE "$shape" "$GAOLBIRD_TEST_LOG"
 

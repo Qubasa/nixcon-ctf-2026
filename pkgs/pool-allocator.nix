@@ -15,22 +15,24 @@
   internalBasePort,
   flagFormat,
   publicHost,
-  password,
   readyTimeout,
-  loginUser ? "gaolbird",
+
+  # What `connection_info` tells the player about the slot's public port:
+  # `{ user, password }` for an SSH login, or null for a web app over HTTP.
+  sshLogin ? null,
 
   # Name of the produced binary (e.g. "gaolbird-1-instance") and the prefix of
   # the systemd units it drives (slot `n`'s unit is "<unitPrefix>-<n>.service",
-  # e.g. "gaolbird-1-vm-3.service"). Every stage's module instance installs
-  # its own allocator into the same profile and runs its own VM units, so a
-  # shared name or prefix across stages would collide.
+  # e.g. "gaolbird-1-vm-3.service"). Every pool installs its own allocator
+  # into the same profile and runs its own VM units, so a shared name or
+  # prefix across pools would collide.
   name,
   unitPrefix,
 
-  stateDir ? "/var/lib/gaolbird-slots",
+  stateDir,
   # `user:group` given to the flag files, or null to leave ownership alone
   # (the test runs unprivileged and cannot chown).
-  flagOwner ? "gaolbird:gaolbird",
+  flagOwner,
 
   # Injected so the test can stub them out.
   systemctl ? "${pkgs.systemd}/bin/systemctl",
@@ -39,22 +41,38 @@
 let
   # A completed connect() proves nothing: QEMU binds the forwarded port the
   # moment the VM process starts and slirp only tears the connection down once
-  # it finds nothing listening in the guest. The SSH banner is the first byte
-  # that actually means "the guest booted".
-  sshProbe = pkgs.writeShellApplication {
-    name = "gaolbird-ssh-probe";
-    text = ''
-      set -euo pipefail
-      port=$1
-      exec 3<>"/dev/tcp/127.0.0.1/$port"
-      banner=""
-      read -r -t 5 banner <&3 || true
-      exec 3<&-
-      [[ $banner == SSH-* ]]
-    '';
+  # it finds nothing listening in the guest. The SSH banner, or an HTTP
+  # response, is the first byte that actually means "the guest booted".
+  defaultProbe = pkgs.writeShellApplication {
+    name = "${name}-ready-probe";
+    runtimeInputs = [ pkgs.curl ];
+    text =
+      if sshLogin != null then
+        ''
+          set -euo pipefail
+          port=$1
+          exec 3<>"/dev/tcp/127.0.0.1/$port"
+          banner=""
+          read -r -t 5 banner <&3 || true
+          exec 3<&-
+          [[ $banner == SSH-* ]]
+        ''
+      else
+        ''
+          curl -sf -m 5 -o /dev/null "http://127.0.0.1:$1/"
+        '';
   };
 
-  probe = if readyProbe != null then readyProbe else "${sshProbe}/bin/gaolbird-ssh-probe";
+  probe = if readyProbe != null then readyProbe else lib.getExe defaultProbe;
+
+  connectionInfo =
+    if sshLogin != null then
+      ''
+        printf -- 'ssh %s@%s -p %s  (password: %s)' \
+          ${lib.escapeShellArg sshLogin.user} "$publicHost" "$port" \
+          ${lib.escapeShellArg sshLogin.password}''
+    else
+      ''printf -- 'http://%s:%s/' "$publicHost" "$port"'';
 in
 pkgs.writeShellApplication {
   inherit name;
@@ -80,7 +98,6 @@ pkgs.writeShellApplication {
     systemctl=${lib.escapeShellArg systemctl}
     probe=${lib.escapeShellArg probe}
     publicHost=${lib.escapeShellArg publicHost}
-    password=${lib.escapeShellArg password}
 
     die() {
       printf '${name}: %s\n' "$1" >&2
@@ -175,8 +192,7 @@ pkgs.writeShellApplication {
       identity=$(cat "$stateDir/$n/identity")
       flag=$(cat "$stateDir/$n/flag")
       port=$((basePort + n - 1))
-      connection_info=$(printf -- 'ssh %s@%s -p %s  (password: %s)' \
-        ${lib.escapeShellArg loginUser} "$publicHost" "$port" "$password")
+      connection_info=$(${connectionInfo})
       # jq builds the object so no identity, flag or password can smuggle a
       # quote into the scenario's parser.
       jq -c -n \
@@ -217,7 +233,7 @@ pkgs.writeShellApplication {
           lock
           teardown "$n"
           unlock
-          die "slot $n did not accept ssh within ''${readyTimeout}s" 5
+          die "slot $n was not ready within ''${readyTimeout}s" 5
         fi
         sleep 2
       done
