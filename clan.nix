@@ -1,4 +1,27 @@
 { inputs }:
+let
+  prodHost = "ctf.nixcon.org";
+  stagingHost = "staging-ctf.immutable-byte.de";
+
+  # ctf-machine is a staging playground next to prod. Only `stagingHost` points
+  # at it, so gitea (own host name, own certificate) stays prod only. The
+  # staging box has 64 GiB, so its VM pools stay small.
+  perHost =
+    { prod, staging }:
+    {
+      prod-ctf-machine.settings = prod;
+      ctf-machine.settings = staging;
+    };
+
+  sharedMachine =
+    { pkgs, ... }:
+    {
+      environment.systemPackages = [ pkgs.helix ];
+
+      # Both hosts carry a PostgreSQL 17 data directory from the old ctf-machine.
+      services.postgresql.package = pkgs.postgresql_17;
+    };
+in
 {
   meta.name = "nixcon-ctf";
   meta.domain = "immutable-byte.de";
@@ -32,12 +55,12 @@
   inventory.instances = {
     internet = {
       roles.default.machines."prod-ctf-machine" = {
-        settings.host = "ctf.nixcon.org"; 
+        settings.host = prodHost;
         settings.user = "root";
       };
 
       roles.default.machines."ctf-machine" = {
-        settings.host = "staging-ctf.immutable-byte.de"; 
+        settings.host = stagingHost;
         settings.user = "root";
       };
     };
@@ -74,12 +97,16 @@
         name = "ctfd";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
+      roles.server.machines = perHost {
+        prod = {
+          nginx.hostName = prodHost;
+          nginx.redirectHostNames = [ "ctf.immutable-byte.de" ];
+        };
+        staging.nginx.hostName = stagingHost;
+      };
       roles.server.settings = {
         nginx = {
           enable = true;
-          hostName = "ctf.nixcon.org";
-          redirectHostNames = [ "ctf.immutable-byte.de" ];
           acmeEmail = "admin@immutable-byte.de";
         };
       };
@@ -103,6 +130,7 @@
         input = "self";
       };
       roles.server.machines.prod-ctf-machine = { };
+      roles.server.machines.ctf-machine = { };
       roles.server.settings = {
         scenarioWritePaths = [
           "/var/lib/homewort-slots"
@@ -120,10 +148,15 @@
         name = "homewort";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
-      roles.server.settings = {
-        maxSlots = 40;
-        publicHost = "ctf.nixcon.org";
+      roles.server.machines = perHost {
+        prod = {
+          maxSlots = 40;
+          publicHost = prodHost;
+        };
+        staging = {
+          maxSlots = 2;
+          publicHost = stagingHost;
+        };
       };
     };
 
@@ -132,10 +165,15 @@
         name = "homewort-v2";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
-      roles.server.settings = {
-        maxSlots = 14;
-        publicHost = "ctf.nixcon.org";
+      roles.server.machines = perHost {
+        prod = {
+          maxSlots = 14;
+          publicHost = prodHost;
+        };
+        staging = {
+          maxSlots = 2;
+          publicHost = stagingHost;
+        };
       };
     };
 
@@ -144,11 +182,18 @@
         name = "gaolbird";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
+      roles.server.machines = perHost {
+        prod = {
+          maxSlots = 8;
+          publicHost = prodHost;
+        };
+        staging = {
+          maxSlots = 2;
+          publicHost = stagingHost;
+        };
+      };
       roles.server.settings = {
         challengeStage = 1;
-        maxSlots = 8;
-        publicHost = "ctf.nixcon.org";
         basePort = 2401;
         internalBasePort = 42401;
       };
@@ -159,11 +204,18 @@
         name = "gaolbird";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
+      roles.server.machines = perHost {
+        prod = {
+          maxSlots = 8;
+          publicHost = prodHost;
+        };
+        staging = {
+          maxSlots = 2;
+          publicHost = stagingHost;
+        };
+      };
       roles.server.settings = {
         challengeStage = 2;
-        maxSlots = 8;
-        publicHost = "ctf.nixcon.org";
         basePort = 2411;
         internalBasePort = 42411;
       };
@@ -174,11 +226,18 @@
         name = "gaolbird";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
+      roles.server.machines = perHost {
+        prod = {
+          maxSlots = 8;
+          publicHost = prodHost;
+        };
+        staging = {
+          maxSlots = 2;
+          publicHost = stagingHost;
+        };
+      };
       roles.server.settings = {
         challengeStage = 3;
-        maxSlots = 8;
-        publicHost = "ctf.nixcon.org";
         basePort = 2421;
         internalBasePort = 42421;
       };
@@ -189,11 +248,18 @@
         name = "gaolbird";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
+      roles.server.machines = perHost {
+        prod = {
+          maxSlots = 8;
+          publicHost = prodHost;
+        };
+        staging = {
+          maxSlots = 2;
+          publicHost = stagingHost;
+        };
+      };
       roles.server.settings = {
         challengeStage = 4;
-        maxSlots = 8;
-        publicHost = "ctf.nixcon.org";
         basePort = 2431;
         internalBasePort = 42431;
       };
@@ -204,13 +270,11 @@
         name = "baas";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
-      roles.server.settings = {
-        nginx = {
-          enable = true;
-          hostName = "ctf.nixcon.org";
-        };
+      roles.server.machines = perHost {
+        prod.nginx.hostName = prodHost;
+        staging.nginx.hostName = stagingHost;
       };
+      roles.server.settings.nginx.enable = true;
     };
 
     rtunreal = {
@@ -218,18 +282,15 @@
         name = "rtunreal";
         input = "self";
       };
-      roles.server.machines.prod-ctf-machine = { };
-      roles.server.settings = {
-        nginx.hostName = "ctf.nixcon.org";
+      roles.server.machines = perHost {
+        prod.nginx.hostName = prodHost;
+        staging.nginx.hostName = stagingHost;
       };
     };
   };
 
   machines = {
-    prod-ctf-machine = { config, pkgs, ... }: {
-      environment.systemPackages = [ pkgs.helix ];
-
-      services.postgresql.package = pkgs.postgresql_17;
-    };
+    prod-ctf-machine = sharedMachine;
+    ctf-machine = sharedMachine;
   };
 }
