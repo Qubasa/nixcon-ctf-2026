@@ -132,11 +132,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1790383891,
-        "narHash": "sha256-phm9Qls9CGJOJ4hRCGsTOX0jSi8vI6iEooSXUbvApQ0=",
+        "lastModified": 1790392487,
+        "narHash": "sha256-bW40bA1wHp4S6jrcocKsDUY5oJtT6zsz7uayXxW5LoY=",
         "ref": "refs/heads/main",
-        "rev": "a9717b1a2e2195013d0d3668c210944ac16aa5b3",
-        "revCount": 7,
+        "rev": "beeecddcfbd4c0c2badcd6f500c8fa981afe4191",
+        "revCount": 10,
         "type": "git",
         "url": "ssh://gitea@git.immutable-byte.de/nixcon-ctf/gaolbird.git"
       },
