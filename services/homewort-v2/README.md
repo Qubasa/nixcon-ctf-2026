@@ -192,8 +192,8 @@ That loopback port is also how `create` decides a VM is ready: it reads the SSH
 banner off it. A completed connect proves nothing, because QEMU binds the
 forwarded port the moment the VM process starts.
 
-With `maxSlots = 4` this pool owns public TCP **2301-2304** and loopback
-**42301-42304**, a hundred above `homewort`'s 2201-2212 and 42201-42212, which
+With `maxSlots = 14` this pool owns public TCP **2301-2314** and loopback
+**42301-42314**, a hundred above `homewort`'s 2201-2240 and 42201-42240, which
 leaves both ranges room to grow before they meet. The public ports are open in
 the firewall for every slot, claimed or not. An unclaimed slot's proxy socket
 accepts and then finds no guest, which is exactly what a player sees when they
@@ -204,28 +204,29 @@ guess a port that is not theirs.
 `maxSlots` is a hard cap on concurrent instances, not a soft limit: every
 claimed slot runs a real VM, and this pool is the second one on the host.
 
-The pool runs four slots, not the module's own default, because the twelve-slot
-v1 pool has first claim on the machine's RAM. The two pools together declare
-12 x 4 GiB + 4 x 4 GiB = 64 GiB of `memorySize` against the host's 62 GiB of
-usable RAM, so they are deliberately overcommitted. The overcommit is sound
-because `memorySize` is a per-guest ceiling, not a reservation. Measured on this
-host for a v2 guest: 2.38 GiB RSS after a full in-guest `nixos-rebuild switch`,
-which took 55 s offline and left a 660 MiB overlay. Four of those add roughly
-10 GiB to the 29 GiB the v1 pool measured with all twelve guests rebuilding,
-so the realistic worst case sits near 39 GiB and leaves the host over 20 GiB.
+The pool runs fourteen slots against v1's forty, because the v1 pool is the one
+most players reach. The host is an AMD EPYC 7502P (32 cores / 64 threads,
+251 GiB). Both pools together declare 40 x 4 GiB + 14 x 4 GiB = 216 GiB of
+`memorySize`, plus 10 GiB for the `baas` and `rtunreal` VMs, which leaves
+~25 GiB for the host even if every guest touches its full ceiling. Nothing is
+overcommitted. Measured on this host with all 54 guests of both pools claimed
+and rebuilding at once: every rebuild succeeded, `rebuildHome-friend` took
+59 s alone and ~120 s in the storm, and the pools peaked at 130 GiB RSS with
+118 GiB still available, so the realistic peak sits far below the ceiling.
 
 A v2 guest is no more expensive than a v1 one despite rebuilding the whole
 system rather than one home: 2.38 GiB against v1's measured 2.4 GiB. The
-smaller pool buys headroom, not a cheaper guest.
+smaller pool reflects demand, not a more expensive guest.
 
-The case that would not fit is all 16 slots claimed and every guest touching
-its full 4 GiB at the same instant. If that ever looks likely, lower `maxSlots`
-here rather than on v1: this pool is the one fewer players hold.
+If host RAM ever gets tight, lower `maxSlots` here rather than on v1: this pool
+is the one fewer players hold.
 
-CPU is the softer limit, as on v1: guests are idle almost all the time and
-`readyTimeout` covers the guest's boot, not a player's rebuild.
+CPU is the softer limit, as on v1: 54 guests at 2 vCPUs are 108 vCPUs on 64
+threads, idle guests cause no measurable CPU pressure, and the 54-way rebuild
+storm peaked at 27 % CPU pressure (avg10). `readyTimeout` covers the guest's
+boot, not a player's rebuild.
 
-Exhaustion is neither queued nor pooled. The fifth player's deploy fails,
+Exhaustion is neither queued nor pooled. The fifteenth player's deploy fails,
 visibly, in the CTFd UI. Nothing silently hands two players the same box. CTFd
 runs in `user_mode = users` on this deployment, so a slot is claimed per player,
 not per team. Throughput over an event is the other half of the sum: a slot is
@@ -283,7 +284,7 @@ inventory.instances.homewort-v2 = {
   roles.server.machines.ctf-machine = { };
   roles.server.settings = {
     publicHost = "ctf.nixcon.org";
-    maxSlots = 4;                # shares the host with homewort's 12 slots
+    maxSlots = 14;               # shares the host with homewort's 40 slots
     # basePort = 2301;           # public SSH port of the first slot
     # internalBasePort = 42301;  # loopback port QEMU forwards to
     # memorySize = 4096;   # MiB per VM, a rebuild inside the VM needs a few GiB

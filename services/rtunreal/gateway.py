@@ -82,8 +82,8 @@ PAGE = """<!doctype html>
 </head>
 <body>
 <h1>Pimp my PHP</h1>
-<p>Package the PHP script so the flake's checks pass, then submit the diff that
-gets you there. Every check has to build, and the flag is printed when they all do.</p>
+<p>Package the PHP script so the flake's checks pass, then submit the diff into the text field below.
+Every check has to build, and once they do the flag will be printed below</p>
 <ol>
  <li>Get the source: <a href="{tarball}">{tarball}</a>.</li>
  <li>Write <code>input-derivation.nix</code>, add whatever else you need, and make
@@ -95,11 +95,9 @@ gets you there. Every check has to build, and the flag is printed when they all 
  <li>Paste it below, or
      <code>curl --data-binary @my.patch {origin}/submit</code>.</li>
 </ol>
-<p>The builder runs <b>offline</b> in a throwaway VM: no substituters, no network,
-and no fetchers. It ships the challenge's own nixpkgs plus the build closure a
-working solution needs. <code>flake.nix</code> and <code>flake.lock</code> are
-restored from the pristine tree after your patch applies, so the checks you are
-graded against are the ones you were given. One submission builds at a time.</p>
+<p>The builder runs <b>offline</b> in a throwaway VM.
+<code>flake.nix</code> and <code>flake.lock</code> are
+restored from the pristine tree after your patch applies.</p>
 <form method="post" action="/submit">
  <p><input type="file" id="file" accept=".patch,.diff,text/*"></p>
  <textarea name="patch" id="patch" placeholder="diff --git a/input-derivation.nix ..."

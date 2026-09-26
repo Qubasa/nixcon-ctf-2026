@@ -20,7 +20,7 @@
               Number of concurrent challenge instances the host offers. Slots
               are claimed on demand, but every claimed slot runs a full VM, so
               this is a hard RAM budget. This pool also shares the host with
-              the 12-slot `homewort` pool, hence the smaller default: this is
+              the larger `homewort` pool, hence the smaller default: this is
               the harder variant, and fewer players reach it at once. Claiming
               beyond it fails the allocator with exit code 4, which surfaces as
               a failed deploy in the CTFd UI.
@@ -33,7 +33,7 @@
             description = ''
               TCP port of the first slot's forwarded SSH. Slot `n` (starting
               at 1) listens on `basePort + n - 1`. The default starts a hundred
-              above `homewort`'s 2201, because that pool owns 2201-2212.
+              above `homewort`'s 2201, leaving that pool room for 100 slots.
             '';
           };
 
