@@ -281,6 +281,10 @@ Each stage is its own `dynamic_iac` challenge:
 - **Name**: `gaolbird-<s>`
 - **Type**: `dynamic_iac`
 - **Scenario**: `127.0.0.1:5000/gaolbird-<s>:0.1.0`
+- **Timeout**: `2700` (45 minutes), after which the janitor destroys the
+  instance. Leaving it empty means an abandoned instance holds its slot
+  forever, and once `maxSlots` teams have given up the stage every further
+  deploy fails with "no free slot"
 - **Destroy on flag**: on, so a solved instance frees its slot immediately
 - **Mana cost**: `0`, because mana is disabled on this deployment
 - **Shared**: off, because every player needs an instance of their own

@@ -20,6 +20,12 @@ let
 
       # Both hosts carry a PostgreSQL 17 data directory from the old ctf-machine.
       services.postgresql.package = pkgs.postgresql_17;
+
+      # The VMs' loopback forward ports (homewort 422xx, homewort-v2 423xx,
+      # gaolbird 424xx, baas and rtunreal 43000-43003) sit inside the kernel's
+      # ephemeral range. An outgoing connection that happens to pick one as its
+      # source port makes QEMU's hostfwd bind fail and the VM crashloop.
+      boot.kernel.sysctl."net.ipv4.ip_local_reserved_ports" = "42200-42499,43000-43003";
     };
 in
 {
@@ -150,7 +156,7 @@ in
       };
       roles.server.machines = perHost {
         prod = {
-          maxSlots = 40;
+          maxSlots = 12;
           publicHost = prodHost;
         };
         staging = {
@@ -167,7 +173,7 @@ in
       };
       roles.server.machines = perHost {
         prod = {
-          maxSlots = 14;
+          maxSlots = 6;
           publicHost = prodHost;
         };
         staging = {
@@ -184,7 +190,9 @@ in
       };
       roles.server.machines = perHost {
         prod = {
-          maxSlots = 8;
+          # Stages are 10 ports apart (2401, 2411, ...), so 10 is the ceiling
+          # for stages 1-3 without moving ports under running instances.
+          maxSlots = 10;
           publicHost = prodHost;
         };
         staging = {
@@ -206,7 +214,7 @@ in
       };
       roles.server.machines = perHost {
         prod = {
-          maxSlots = 8;
+          maxSlots = 10;
           publicHost = prodHost;
         };
         staging = {
@@ -228,7 +236,7 @@ in
       };
       roles.server.machines = perHost {
         prod = {
-          maxSlots = 8;
+          maxSlots = 10;
           publicHost = prodHost;
         };
         staging = {
@@ -250,7 +258,8 @@ in
       };
       roles.server.machines = perHost {
         prod = {
-          maxSlots = 8;
+          # Last stage, so its ports (2431-2446) collide with nothing.
+          maxSlots = 16;
           publicHost = prodHost;
         };
         staging = {
