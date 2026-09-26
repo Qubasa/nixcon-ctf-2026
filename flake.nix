@@ -11,6 +11,8 @@
 
   inputs.gaolbird.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/gaolbird.git";
 
+  inputs.xin.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/xin.git";
+
   inputs.baas.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/baas.git";
   inputs.baas.flake = false;
 
@@ -51,6 +53,7 @@
         gaolbird-2-scenario = pkgs.callPackage ./services/gaolbird/scenario-2/package.nix { };
         gaolbird-3-scenario = pkgs.callPackage ./services/gaolbird/scenario-3/package.nix { };
         gaolbird-4-scenario = pkgs.callPackage ./services/gaolbird/scenario-4/package.nix { };
+        xin-scenario = pkgs.callPackage ./services/xin/scenario/package.nix { };
         baas = pkgs.callPackage ./services/baas/package.nix { src-baas = inputs.baas; };
 
         rtunreal-vm = import ./services/rtunreal/vm.nix {
@@ -70,6 +73,10 @@
           inherit (pkgs) lib;
         };
         gaolbird-allocator = import ./services/gaolbird/allocator-test.nix {
+          inherit pkgs;
+          inherit (pkgs) lib;
+        };
+        xin-allocator = import ./services/xin/allocator-test.nix {
           inherit pkgs;
           inherit (pkgs) lib;
         };

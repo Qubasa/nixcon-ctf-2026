@@ -22,10 +22,10 @@ let
       services.postgresql.package = pkgs.postgresql_17;
 
       # The VMs' loopback forward ports (homewort 422xx, homewort-v2 423xx,
-      # gaolbird 424xx, baas and rtunreal 43000-43003) sit inside the kernel's
-      # ephemeral range. An outgoing connection that happens to pick one as its
-      # source port makes QEMU's hostfwd bind fail and the VM crashloop.
-      boot.kernel.sysctl."net.ipv4.ip_local_reserved_ports" = "42200-42499,43000-43003";
+      # gaolbird 424xx, xin 425xx, baas and rtunreal 43000-43003) sit inside the
+      # kernel's ephemeral range. An outgoing connection that happens to pick one
+      # as its source port makes QEMU's hostfwd bind fail and the VM crashloop.
+      boot.kernel.sysctl."net.ipv4.ip_local_reserved_ports" = "42200-42599,43000-43003";
     };
 in
 {
@@ -41,6 +41,7 @@ in
   modules.homewort-v2 = import ./services/homewort-v2 { inherit inputs; };
   modules.gaolbird = import ./services/gaolbird { inherit inputs; };
   modules.rtunreal = import ./services/rtunreal { inherit inputs; };
+  modules.xin = import ./services/xin { inherit inputs; };
 
   vars.settings.secretStore = "age";
   vars.settings.recipients.default = [
@@ -145,6 +146,7 @@ in
           "/var/lib/gaolbird-2-slots"
           "/var/lib/gaolbird-3-slots"
           "/var/lib/gaolbird-4-slots"
+          "/var/lib/xin-slots"
         ];
       };
     };
@@ -271,6 +273,23 @@ in
         challengeStage = 4;
         basePort = 2431;
         internalBasePort = 42431;
+      };
+    };
+
+    xin = {
+      module = {
+        name = "xin";
+        input = "self";
+      };
+      roles.server.machines = perHost {
+        prod = {
+          maxSlots = 20;
+          publicHost = prodHost;
+        };
+        staging = {
+          maxSlots = 2;
+          publicHost = stagingHost;
+        };
       };
     };
 

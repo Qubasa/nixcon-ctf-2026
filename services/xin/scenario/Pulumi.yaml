@@ -1,0 +1,6 @@
+name: xin
+description: Allocates one ephemeral xin challenge VM per chall-manager instance by driving the xin-instance allocator on the CTF host.
+runtime:
+  name: go
+  options:
+    binary: ./main
