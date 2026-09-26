@@ -144,7 +144,8 @@
             ...
           }:
           let
-            login = config.clan.core.vars.generators.gaolbird-login.files;
+            login =
+              config.clan.core.vars.generators."gaolbird-${toString settings.challengeStage}-login".files;
 
             slots = lib.range 1 settings.maxSlots;
 
@@ -173,6 +174,10 @@
               systemctl = "${config.systemd.package}/bin/systemctl";
               name = "gaolbird-${toString settings.challengeStage}-instance";
               unitPrefix = "gaolbird-${toString settings.challengeStage}-vm";
+              # Matches the per-stage host user above: the default
+              # "gaolbird:gaolbird" no longer exists as a single shared
+              # account, and chowning to a nonexistent user would fail.
+              flagOwner = "gaolbird-${toString settings.challengeStage}:gaolbird-${toString settings.challengeStage}";
             };
 
             # Built by ScenarioAgent's package: loose `Pulumi.yaml` and a
@@ -290,8 +295,8 @@
                     Restart = "always";
                     RestartSec = 5;
 
-                    User = "gaolbird";
-                    Group = "gaolbird";
+                    User = "gaolbird-${toString settings.challengeStage}";
+                    Group = "gaolbird-${toString settings.challengeStage}";
                     SupplementaryGroups = [ "kvm" ];
                     StateDirectory = stateDir;
                     StateDirectoryMode = "0700";
@@ -357,12 +362,18 @@
             };
           in
           {
-            users.users.gaolbird = {
+            # Named per stage, not just "gaolbird": every stage's module
+            # instance defines this on the same machine, and a shared name
+            # would either collide (conflicting `description`s) or, if made to
+            # match, hand every stage's VM processes and flag files to the
+            # same host uid - one stage's arbitrary code execution on the
+            # host would then read every other stage's flag too.
+            users.users."gaolbird-${toString settings.challengeStage}" = {
               isSystemUser = true;
-              group = "gaolbird";
+              group = "gaolbird-${toString settings.challengeStage}";
               description = "Runs the gaolbird-${toString settings.challengeStage} challenge VMs";
             };
-            users.groups.gaolbird = { };
+            users.groups."gaolbird-${toString settings.challengeStage}" = { };
 
             # The login players are given. Public on purpose: it goes into the
             # challenge description. Rotating it means regenerating this and

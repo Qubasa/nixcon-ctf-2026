@@ -9,6 +9,8 @@
 
   inputs.homewort-v2.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/homewort-v2.git";
 
+  inputs.gaolbird.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/gaolbird.git";
+
   inputs.baas.url = "git+ssh://gitea@git.immutable-byte.de/nixcon-ctf/baas.git";
   inputs.baas.flake = false;
 
@@ -45,6 +47,10 @@
         chall-manager = pkgs.callPackage ./pkgs/chall-manager.nix { };
         homewort-scenario = pkgs.callPackage ./services/homewort/scenario/package.nix { };
         homewort-v2-scenario = pkgs.callPackage ./services/homewort-v2/scenario/package.nix { };
+        gaolbird-1-scenario = pkgs.callPackage ./services/gaolbird/scenario-1/package.nix { };
+        gaolbird-2-scenario = pkgs.callPackage ./services/gaolbird/scenario-2/package.nix { };
+        gaolbird-3-scenario = pkgs.callPackage ./services/gaolbird/scenario-3/package.nix { };
+        gaolbird-4-scenario = pkgs.callPackage ./services/gaolbird/scenario-4/package.nix { };
         baas = pkgs.callPackage ./services/baas/package.nix { src-baas = inputs.baas; };
 
         rtunreal-vm = import ./services/rtunreal/vm.nix {
@@ -60,6 +66,10 @@
           inherit (pkgs) lib;
         };
         homewort-v2-allocator = import ./services/homewort-v2/allocator-test.nix {
+          inherit pkgs;
+          inherit (pkgs) lib;
+        };
+        gaolbird-allocator = import ./services/gaolbird/allocator-test.nix {
           inherit pkgs;
           inherit (pkgs) lib;
         };

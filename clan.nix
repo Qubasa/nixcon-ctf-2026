@@ -10,6 +10,7 @@
   modules.nixbot = import ./services/nixbot { inherit inputs; };
   modules.homewort = import ./services/homewort { inherit inputs; };
   modules.homewort-v2 = import ./services/homewort-v2 { inherit inputs; };
+  modules.gaolbird = import ./services/gaolbird { inherit inputs; };
   modules.rtunreal = import ./services/rtunreal { inherit inputs; };
 
   vars.settings.secretStore = "age";
@@ -90,6 +91,10 @@
         scenarioWritePaths = [
           "/var/lib/homewort-slots"
           "/var/lib/homewort-v2-slots"
+          "/var/lib/gaolbird-1-slots"
+          "/var/lib/gaolbird-2-slots"
+          "/var/lib/gaolbird-3-slots"
+          "/var/lib/gaolbird-4-slots"
         ];
       };
     };
@@ -115,6 +120,66 @@
       roles.server.settings = {
         maxSlots = 4;
         publicHost = "ctf.nixcon.org";
+      };
+    };
+
+    gaolbird-1 = {
+      module = {
+        name = "gaolbird";
+        input = "self";
+      };
+      roles.server.machines.prod-ctf-machine = { };
+      roles.server.settings = {
+        challengeStage = 1;
+        maxSlots = 8;
+        publicHost = "ctf.nixcon.org";
+        basePort = 2401;
+        internalBasePort = 42401;
+      };
+    };
+
+    gaolbird-2 = {
+      module = {
+        name = "gaolbird";
+        input = "self";
+      };
+      roles.server.machines.prod-ctf-machine = { };
+      roles.server.settings = {
+        challengeStage = 2;
+        maxSlots = 8;
+        publicHost = "ctf.nixcon.org";
+        basePort = 2411;
+        internalBasePort = 42411;
+      };
+    };
+
+    gaolbird-3 = {
+      module = {
+        name = "gaolbird";
+        input = "self";
+      };
+      roles.server.machines.prod-ctf-machine = { };
+      roles.server.settings = {
+        challengeStage = 3;
+        maxSlots = 8;
+        publicHost = "ctf.nixcon.org";
+        basePort = 2421;
+        internalBasePort = 42421;
+      };
+    };
+
+    gaolbird-4 = {
+      module = {
+        name = "gaolbird";
+        input = "self";
+      };
+      roles.server.machines.prod-ctf-machine = { };
+      roles.server.settings = {
+        challengeStage = 4;
+        maxSlots = 8;
+        publicHost = "ctf.nixcon.org";
+        basePort = 2431;
+        internalBasePort = 42431;
       };
     };
 
