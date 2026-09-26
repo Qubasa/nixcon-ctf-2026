@@ -1,0 +1,6 @@
+name: gaolbird-2
+description: Allocates one ephemeral gaolbird-2 challenge VM per chall-manager instance by driving the gaolbird-2-instance allocator on the CTF host.
+runtime:
+  name: go
+  options:
+    binary: ./main
